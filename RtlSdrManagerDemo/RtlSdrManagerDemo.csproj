@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <Version>0.1.1</Version>
+    <FileVersion>0.1.1.0</FileVersion>
+    <AssemblyVersion>0.1.1.0</AssemblyVersion>
+    <Authors>Nandor Toth</Authors>
+    <Product>RTL-SDR Manager Library for .NET Core</Product>
+    <ProductVersion>0.1.1.0</ProductVersion>
+    <LangVersion>7.2</LangVersion>
+    <AssemblyName>RtlSdrManager.Demo</AssemblyName>
+    <RootNamespace>RtlSdrManager.Demo</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RtlSdrManager\RtlSdrManager.csproj" />
+  </ItemGroup>
+</Project>

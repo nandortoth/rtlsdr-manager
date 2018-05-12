@@ -1,0 +1,8 @@
+# JetBrains Rider IDE
+.idea/
+
+# Build results
+RtlSdrManager/bin/
+RtlSdrManager/obj/
+RtlSdrManagerDemo/bin/
+RtlSdrManagerDemo/obj/
