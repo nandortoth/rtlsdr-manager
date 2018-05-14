@@ -198,7 +198,7 @@ namespace RtlSdrManager
                     // Elonics E4000.
                     case TunerTypes.E4000:
                         if ((value.MHz < 52 || value.MHz >= 1100) &&
-                            (value.MHz <= 1250 || value.MHz > 1250))
+                            (value.MHz <= 1250 || value.MHz > 2200))
                         {
                             wrongFrequency = true;
                         }
