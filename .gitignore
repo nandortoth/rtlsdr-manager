@@ -2,7 +2,8 @@
 .idea/
 
 # Build results
-RtlSdrManager/bin/
-RtlSdrManager/obj/
-RtlSdrManagerDemo/bin/
-RtlSdrManagerDemo/obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
