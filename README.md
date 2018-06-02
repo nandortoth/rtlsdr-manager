@@ -7,9 +7,9 @@
 v0.1.2 - June 3, 2018
 
 * Additional capabilities in RTL-SDR Manager
-  * Handling crystal frequencies
-  * Bandwith selection: automatic or manual
-  
+  * Handling crystal frequencies (RTL2832, IC)
+  * Support tuner bandwith selection (Automatic, Manual)
+  * Support direct sampling (I-ADC, Q-ADC)
 
 v0.1.1 - May 12, 2018
 

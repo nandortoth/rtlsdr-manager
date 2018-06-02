@@ -17,11 +17,12 @@
 namespace RtlSdrManager.Types
 {
     /// <summary>
-    /// Tuner bandwidth selection modes for the device.
+    /// Tuner gain modes for the device.
     /// </summary>
-    public enum TunerBandwidthSelectionModes
+    public enum DirectSamplingModes
     {
-        Automatic,
-        Manual
+        Disabled,
+        InPhaseADCInputEnabled,
+        QuadratureADCInputEnabled
     }
 }

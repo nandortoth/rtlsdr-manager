@@ -59,7 +59,7 @@ namespace RtlSdrManager
         /// <summary>
         /// Tuner bandwidth selection mode of the RTL-SDR device;
         /// </summary>
-        private TunerBandwithSelectionModes _tunerBandwithSelectionMode;
+        private TunerBandwidthSelectionModes _tunerBandwidthSelectionMode;
         
         /// <summary>
         /// Tuner bandwidth of the RTL-SDR device;
@@ -131,9 +131,9 @@ namespace RtlSdrManager
             // The initialization is necessary, to be sure that it will happen once.
             TestMode = TestModes.Disabled;   
             
-            // Set the bandwith selection mode to automatic.
+            // Set the bandwidth selection mode to automatic.
             // The initialization is necessary, to be sure that it will happen once.
-            TunerBandwithSelectionMode = TunerBandwithSelectionModes.Automatic;
+            TunerBandwidthSelectionMode = TunerBandwidthSelectionModes.Automatic;
          
             // Set the default value of maximum async I/Q buffer.
             // The initialization is necessary, to be sure that it will happen once.
@@ -404,16 +404,16 @@ namespace RtlSdrManager
         /// Set the tuner bandwidth selection mode for the device.
         /// </summary>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-        public TunerBandwithSelectionModes TunerBandwithSelectionMode
+        public TunerBandwidthSelectionModes TunerBandwidthSelectionMode
         {
-            get => _tunerBandwithSelectionMode;
+            get => _tunerBandwidthSelectionMode;
             set
             {
                 // Check which mode was selected.
                 switch (value)
                 {
                     // Automatic.
-                    case TunerBandwithSelectionModes.Automatic:
+                    case TunerBandwidthSelectionModes.Automatic:
                         // Set the new value on the device.
                         var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_tuner_bandwidth(_devicePointer, 0);
                         
@@ -427,14 +427,14 @@ namespace RtlSdrManager
                         break;
                     
                     // Manual.
-                    case TunerBandwithSelectionModes.Manual:
+                    case TunerBandwidthSelectionModes.Manual:
                         // Set the bandwidth to zero.
                         _tunerBandwith = new Frequency(0);
                         break;
                 }
 
                 // Since there is no get function in librtlsdr, store the value.
-                _tunerBandwithSelectionMode = value;
+                _tunerBandwidthSelectionMode = value;
             }
         }
 
@@ -448,7 +448,7 @@ namespace RtlSdrManager
             get
             {
                 // Check the tuner bandwidth selection mode.
-                if (TunerBandwithSelectionMode == TunerBandwithSelectionModes.Automatic)
+                if (TunerBandwidthSelectionMode == TunerBandwidthSelectionModes.Automatic)
                 {
                     throw new RtlSdrLibraryExecutionException(
                         "Automatic tuner bandwidth selection mode is enabled, " +
@@ -462,7 +462,7 @@ namespace RtlSdrManager
             set
             {
                 // Check the tuner bandwidth selection mode.
-                if (TunerBandwithSelectionMode == TunerBandwithSelectionModes.Automatic)
+                if (TunerBandwidthSelectionMode == TunerBandwidthSelectionModes.Automatic)
                 {
                     throw new RtlSdrLibraryExecutionException(
                         "Automatic tuner bandwidth selection mode is enabled, " +
@@ -675,6 +675,43 @@ namespace RtlSdrManager
                 {
                     throw new RtlSdrLibraryExecutionException(
                         "Problem happened during setting frequency correction of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Direct Sampling mode for the device.
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public DirectSamplingModes DirectSamplingMode
+        {
+            get
+            {
+                // Get the value from the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_get_direct_sampling(_devicePointer);
+
+                // If we got less than 0, there is an error.
+                if (returnValue < 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during reading the direct sampling mode of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+
+                // Return the value.
+                return (DirectSamplingModes) returnValue;
+            }
+            set
+            {
+                // Set the new value on the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_direct_sampling(_devicePointer, (int) value);
+                
+                // If we did not get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during setting direct sampling mode of the device. " +
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             }

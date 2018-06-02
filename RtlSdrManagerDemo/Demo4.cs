@@ -79,11 +79,12 @@ namespace RtlSdrManager.Demo
                                   $"    {"Serial",-22}: {device.DeviceInfo.Serial}\n" +
                                   $"    {"Name",-22}: {device.DeviceInfo.Name}\n" +
                                   $"    {"Tuner type",-22}: {device.TunerType}\n" +
-                                  $"    {"Center frequency",-22}: {device.CenterFrequency}\n" +
+                                  $"    {"Center frequency",-22}: {device.CenterFrequency.MHz} MHz\n" +
                                   $"    {"Crystal frequency",-22}: {device.CrystalFrequency}\n" +
                                   $"    {"Frequency correction",-22}: {device.FrequencyCorrection} ppm\n" +
-                                  $"    {"Bandwith selection:",-22}: {device.TunerBandwithSelectionMode}\n" +
-                                  $"    {"Sample rate",-22}: {device.SampleRate}\n" +
+                                  $"    {"Bandwith selection:",-22}: {device.TunerBandwidthSelectionMode}\n" +
+                                  $"    {"Sample rate",-22}: {device.SampleRate.MHz} MHz\n" +
+                                  $"    {"Direct sampling mode",-22}: {device.DirectSamplingMode}\n" +
                                   $"    {"AGC mode",-22}: {device.AGCMode}\n" +
                                   $"    {"Tuner gain mode",-22}: {device.TunerGainMode}\n" +
                                   $"    {"Test mode",-22}: {device.TestMode}");
