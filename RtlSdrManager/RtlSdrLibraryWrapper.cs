@@ -145,20 +145,6 @@ namespace RtlSdrManager
         internal static extern int rtlsdr_get_xtal_freq(IntPtr dev, out uint rtlFreq, out uint tunerFreq);
 
         /// <summary>
-        /// Get USB device strings.
-        /// NOTE: The string arguments must provide space for up to 256 bytes.
-        /// </summary>
-        /// <param name="dev">Device pointer.</param>
-        /// <param name="manufact">Buffer for manufacturer name, may be NULL.</param>
-        /// <param name="product">Buffer for product name, may be NULL.</param>
-        /// <param name="serial">Buffer for serial number, may be NULL.</param>
-        /// <returns>0 on success.</returns>
-        [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_usb_strings",
-            CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int rtlsdr_get_usb_strings(IntPtr dev, StringBuilder manufact,
-            StringBuilder product, StringBuilder serial);
-
-        /// <summary>
         /// Set frequency the device must be tuned to.
         /// </summary>
         /// <param name="dev">Device pointer.</param>

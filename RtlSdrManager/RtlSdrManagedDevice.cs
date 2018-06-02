@@ -57,6 +57,16 @@ namespace RtlSdrManager
         private TestModes _deviceTestMode;
 
         /// <summary>
+        /// Tuner bandwidth selection mode of the RTL-SDR device;
+        /// </summary>
+        private TunerBandwithSelectionModes _tunerBandwithSelectionMode;
+        
+        /// <summary>
+        /// Tuner bandwidth of the RTL-SDR device;
+        /// </summary>
+        private Frequency _tunerBandwith;
+
+        /// <summary>
         /// Device context for async read.
         /// </summary>
         private GCHandle _deviceContext;
@@ -119,8 +129,12 @@ namespace RtlSdrManager
 
             // Set the test mode to disabled.
             // The initialization is necessary, to be sure that it will happen once.
-            TestMode = TestModes.Disabled;
+            TestMode = TestModes.Disabled;   
             
+            // Set the bandwith selection mode to automatic.
+            // The initialization is necessary, to be sure that it will happen once.
+            TunerBandwithSelectionMode = TunerBandwithSelectionModes.Automatic;
+         
             // Set the default value of maximum async I/Q buffer.
             // The initialization is necessary, to be sure that it will happen once.
             MaxAsyncBufferSize = AsyncDefaultReadLength * 4;
@@ -266,6 +280,53 @@ namespace RtlSdrManager
         }
 
         /// <summary>
+        /// Set and get the crystal frequencies of the device.
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public CrystalFrequency CrystalFrequency
+        {
+            get
+            {
+                // Get the value from the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_get_xtal_freq(_devicePointer,
+                    out var rtl2832Frequency, out var tunerFrequency);
+
+                // If we didn't get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during reading the crystal frequencies of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+
+                // Return the value.
+                return new CrystalFrequency(new Frequency(rtl2832Frequency), new Frequency(tunerFrequency));          
+            }
+            set
+            {
+                // Crystal frequencies cannot be higher than 28.8 MHz.
+                if (value.Rtl2832Frequency.MHz > 28.8 || value.TunerFrequency.MHz > 28.8)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        "Problem happened during setting the crystal frequencies of the device. " +
+                        $"Wrong frequency was given: {value}.");
+                }
+                
+                // Set the new value on the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_xtal_freq(_devicePointer,
+                    value.Rtl2832Frequency.Hz, value.TunerFrequency.Hz);
+
+                // If we did not get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during setting the crystal frequencies of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+            }
+        }
+
+        /// <summary>
         /// Set the sample rate of the device.
         ///   225001 - 300000 Hz
         ///   900001 - 3200000 Hz
@@ -336,6 +397,92 @@ namespace RtlSdrManager
 
                 // Since there is no get function in librtlsdr, store the value.
                 _deviceTunerGainMode = value;
+            }
+        }
+
+        /// <summary>
+        /// Set the tuner bandwidth selection mode for the device.
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public TunerBandwithSelectionModes TunerBandwithSelectionMode
+        {
+            get => _tunerBandwithSelectionMode;
+            set
+            {
+                // Check which mode was selected.
+                switch (value)
+                {
+                    // Automatic.
+                    case TunerBandwithSelectionModes.Automatic:
+                        // Set the new value on the device.
+                        var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_tuner_bandwidth(_devicePointer, 0);
+                        
+                        // If we did not get 0, there is an error.
+                        if (returnValue != 0)
+                        {
+                            throw new RtlSdrLibraryExecutionException(
+                                "Problem happened during setting the tuner gain mode of the device. " +
+                                $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                        }
+                        break;
+                    
+                    // Manual.
+                    case TunerBandwithSelectionModes.Manual:
+                        // Set the bandwidth to zero.
+                        _tunerBandwith = new Frequency(0);
+                        break;
+                }
+
+                // Since there is no get function in librtlsdr, store the value.
+                _tunerBandwithSelectionMode = value;
+            }
+        }
+
+        /// <summary>
+        /// Set the tuner bandwidth for the device.
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        public Frequency TunerBandwith
+        {
+            get
+            {
+                // Check the tuner bandwidth selection mode.
+                if (TunerBandwithSelectionMode == TunerBandwithSelectionModes.Automatic)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Automatic tuner bandwidth selection mode is enabled, " +
+                        "it is not possible to use the TunerBandwidth property. " +
+                        $"Device index: {DeviceInfo.Index}.");
+                }
+
+                // Return the current settings.
+                return _tunerBandwith;
+            }
+            set
+            {
+                // Check the tuner bandwidth selection mode.
+                if (TunerBandwithSelectionMode == TunerBandwithSelectionModes.Automatic)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Automatic tuner bandwidth selection mode is enabled, " +
+                        "it is not possible to use the TunerBandwidth property. " +
+                        $"Device index: {DeviceInfo.Index}.");
+                }
+                
+                // Set the tuner bandwidth for the device
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_tuner_bandwidth(_devicePointer, value.Hz);
+
+                // If we did not get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during setting the tuner bandwidth of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+                
+                // Since there is no get function in librtlsdr, store the value.
+                _tunerBandwith = value;
             }
         }
 

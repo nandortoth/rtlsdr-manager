@@ -19,7 +19,7 @@ using System;
 namespace RtlSdrManager.Types
 {
     /// <summary>
-    /// Simple class to handle frequencies in Hertz.
+    /// Class to handle frequencies in Hertz.
     /// </summary>
     public class Frequency
     {

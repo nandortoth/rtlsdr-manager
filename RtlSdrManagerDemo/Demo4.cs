@@ -80,7 +80,9 @@ namespace RtlSdrManager.Demo
                                   $"    {"Name",-22}: {device.DeviceInfo.Name}\n" +
                                   $"    {"Tuner type",-22}: {device.TunerType}\n" +
                                   $"    {"Center frequency",-22}: {device.CenterFrequency}\n" +
+                                  $"    {"Crystal frequency",-22}: {device.CrystalFrequency}\n" +
                                   $"    {"Frequency correction",-22}: {device.FrequencyCorrection} ppm\n" +
+                                  $"    {"Bandwith selection:",-22}: {device.TunerBandwithSelectionMode}\n" +
                                   $"    {"Sample rate",-22}: {device.SampleRate}\n" +
                                   $"    {"AGC mode",-22}: {device.AGCMode}\n" +
                                   $"    {"Tuner gain mode",-22}: {device.TunerGainMode}\n" +
