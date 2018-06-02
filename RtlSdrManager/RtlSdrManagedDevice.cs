@@ -64,7 +64,7 @@ namespace RtlSdrManager
         /// <summary>
         /// Tuner bandwidth of the RTL-SDR device;
         /// </summary>
-        private Frequency _tunerBandwith;
+        private Frequency _tunerBandwidth;
 
         /// <summary>
         /// Device context for async read.
@@ -429,7 +429,7 @@ namespace RtlSdrManager
                     // Manual.
                     case TunerBandwidthSelectionModes.Manual:
                         // Set the bandwidth to zero.
-                        _tunerBandwith = new Frequency(0);
+                        _tunerBandwidth = new Frequency(0);
                         break;
                 }
 
@@ -443,7 +443,7 @@ namespace RtlSdrManager
         /// </summary>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
-        public Frequency TunerBandwith
+        public Frequency TunerBandwidth
         {
             get
             {
@@ -457,7 +457,7 @@ namespace RtlSdrManager
                 }
 
                 // Return the current settings.
-                return _tunerBandwith;
+                return _tunerBandwidth;
             }
             set
             {
@@ -482,7 +482,7 @@ namespace RtlSdrManager
                 }
                 
                 // Since there is no get function in librtlsdr, store the value.
-                _tunerBandwith = value;
+                _tunerBandwidth = value;
             }
         }
 
