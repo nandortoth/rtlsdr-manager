@@ -1,15 +1,21 @@
 # RTL-SDR Manager Library for .NET Core
 
+## Installation
+
+TBD
+
 ## Usage
+
+TBD
 
 ## Release Notes
 
 v0.1.2 - June 3, 2018
 
-* Additional capabilities in RTL-SDR Manager
-  * Handling crystal frequencies (RTL2832, IC)
-  * Support tuner bandwith selection (Automatic, Manual)
-  * Support direct sampling (I-ADC, Q-ADC)
+* Handling crystal frequencies (RTL2832, IC)
+* Support tuner bandwith selection (Automatic, Manual)
+* Support direct sampling (I-ADC, Q-ADC)
+* Support offset tuning mode for zero-IF tuners
 
 v0.1.1 - May 12, 2018
 

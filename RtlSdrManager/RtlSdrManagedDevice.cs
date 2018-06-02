@@ -716,6 +716,43 @@ namespace RtlSdrManager
                 }
             }
         }
+        
+        /// <summary>
+        /// Offset tuning mode for zero-IF tuners.
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public OffsetTuningModes OffsetTuningMode
+        {
+            get
+            {
+                // Get the value from the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_get_offset_tuning(_devicePointer);
+
+                // If we got less than 0, there is an error.
+                if (returnValue < 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during reading the offset tuning mode of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+
+                // Return the value.
+                return (OffsetTuningModes) returnValue;
+            }
+            set
+            {
+                // Set the new value on the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_offset_tuning(_devicePointer, (int) value);
+                
+                // If we did not get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during setting offset tuning mode of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+            }
+        }
 
         #endregion
 

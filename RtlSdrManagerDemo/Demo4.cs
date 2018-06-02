@@ -87,6 +87,7 @@ namespace RtlSdrManager.Demo
                                   $"    {"Direct sampling mode",-22}: {device.DirectSamplingMode}\n" +
                                   $"    {"AGC mode",-22}: {device.AGCMode}\n" +
                                   $"    {"Tuner gain mode",-22}: {device.TunerGainMode}\n" +
+                                  $"    {"Offset tuning mode",-22}: {device.OffsetTuningMode}\n" +
                                   $"    {"Test mode",-22}: {device.TestMode}");
                 Console.Write($"    {"Supported tuner gains",-22}: ");
 
