@@ -1,51 +1,23 @@
 ﻿<?xml version="1.0"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
     <metadata>
-        <!-- The identifier that must be unique within the hosting gallery -->
         <id>RtlSdrManager</id>
-
-        <!-- The package version number that is used when resolving dependencies -->
+        <title>RTL SDR Manager</title>
         <version>0.1.3</version>
-
-        <!-- Authors contain text that appears directly on the gallery -->
+        <language>en-US</language>
         <authors>Nandor Toth</authors>
-
-        <!-- 
-            Owners are typically nuget.org identities that allow gallery
-            users to easily find other packages by the same owners.  
-        -->
         <owners>nandortoth</owners>
-
-        <!-- License and project URLs provide links for the gallery -->
         <licenseUrl>https://github.com/nandortoth/rtlsdrmanager-dotnet-core/blob/master/LICENSE.md</licenseUrl>
         <projectUrl>https://github.com/nandortoth/rtlsdrmanager-dotnet-core</projectUrl>
-
-        <!-- The icon is used in Visual Studio's package manager UI -->
-        <iconUrl>https://github.com/nandortoth/rtlsdrmanager-dotnet-core/blob/master/NuGet/RtlSdrManager.Icon.png</iconUrl>
-
-        <!-- 
-            If true, this value prompts the user to accept the license when
-            installing the package. 
-        -->
+        <iconUrl>https://github.com/nandortoth/rtlsdrmanager-dotnet-core/raw/master/NuGet/RtlSdrManager.Icon.png</iconUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-
-        <!-- Any details about this particular release -->
         <releaseNotes>Includes NuGet support.</releaseNotes>
-
-        <!-- 
-            The description can be used in package manager UI. Note that the
-            nuget.org gallery uses information you add in the portal. 
-        -->
-        <description>.NET Core library to manage RTL-SDR devices</description>
-
-        <!-- Copyright information -->
+        <description>.NET Core library to manage RTL-SDR devices. The library is a wrapper for librtlsdr, to read I/Q samples in asynchronous and synchronous modes.
+        </description>
+        <summary>.NET Core library to manage RTL-SDR devices</summary>
         <copyright>Copyright ©2018 Nandor Toth</copyright>
-
-        <!-- Tags appear in the gallery and can be used for tag searches -->
         <tags>rtl-sdr software-defined-radio sdr rtl2832u</tags>
     </metadata>
-    
-    <!-- Included files to the package -->
     <files>
         <file src="publish/**/*.*" target="lib" />
         <file src="../README.md" target="content" />

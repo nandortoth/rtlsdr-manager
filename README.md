@@ -45,10 +45,10 @@ if (!manager["my-rtl-sdr"].AsyncBuffer.TryDequeue(out var data))
     Thread.Sleep(100);
     continue;
 }
-```
 
 // Use the sample
-Console.WriteLine(data)
+Console.WriteLine(data);
+```
 
 ## Release Notes
 
