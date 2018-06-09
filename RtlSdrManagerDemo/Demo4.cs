@@ -39,7 +39,7 @@ namespace RtlSdrManager.Demo
 
             // Go through on all the devices on the system.
             Console.WriteLine("AVAILABLE DEVICES");
-            foreach (var device in RtlSdrDeviceManager.Devices)
+            foreach (var device in manager.Devices.Values)
             {
                 Console.WriteLine($"  Device (index: {device.Index}):\n" +
                                   $"    {"Manufacturer",-12}: {device.Manufacturer}\n" +

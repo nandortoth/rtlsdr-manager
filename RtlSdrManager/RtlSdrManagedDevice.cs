@@ -83,18 +83,21 @@ namespace RtlSdrManager
         /// <summary>
         /// Create an instance of managed RTL-SDR device.
         /// </summary>
-        /// <param name="index">Index of the device on the system.</param>
-        internal RtlSdrManagedDevice(uint index)
+        /// <param name="deviceInfo">Fundamental information of the device.</param>
+        internal RtlSdrManagedDevice(DeviceInfo deviceInfo)
         {
+            // Store the index number of the device.
+            _deviceIndex = deviceInfo.Index;
+            
             // Get the other data of the device.
-            var returnCode = RtlSdrLibraryWrapper.rtlsdr_open(out _devicePointer, index);
+            var returnCode = RtlSdrLibraryWrapper.rtlsdr_open(out _devicePointer, _deviceIndex);
 
             // The index doesn't exists on the system.
             if (returnCode == -1)
             {
                 throw new RtlSdrLibraryExecutionException(
                     "RTL-SDR device cannot be found with the given index. " +
-                    $"Error code: {returnCode}, device index: {index}.");
+                    $"Error code: {returnCode}, device index: {_deviceIndex}.");
             }
 
             // The device is already managed.
@@ -102,7 +105,7 @@ namespace RtlSdrManager
             {
                 throw new RtlSdrLibraryExecutionException(
                     "The RTL-SDR device is already managed (opened). " +
-                    $"Error code: {returnCode}, device index: {index}.");
+                    $"Error code: {returnCode}, device index: {_deviceIndex}.");
             }
 
             // Other error was happened.
@@ -110,11 +113,8 @@ namespace RtlSdrManager
             {
                 throw new RtlSdrLibraryExecutionException(
                     "Problem happened during reading opening the RTL-SDR device. " +
-                    $"Error code: {returnCode}, device index: {index}.");
+                    $"Error code: {returnCode}, device index: {_deviceIndex}.");
             }
-
-            // Store the index number of the device.
-            _deviceIndex = index;
 
             // Set the device context.
             _deviceContext = GCHandle.Alloc(this);
@@ -142,9 +142,9 @@ namespace RtlSdrManager
             // Set the default value of behavior when the buffer is full.
             // The initialization is necessary, to be sure that it will happen once.
             DropSamplesOnFullBuffer = false;
-
+            
             // Run GetDeviceInfo to put fundamental data of device to the cache.
-            DeviceInfo = RtlSdrDeviceManager.GetDeviceInfo(index);
+            DeviceInfo = deviceInfo;
         }
 
         #endregion

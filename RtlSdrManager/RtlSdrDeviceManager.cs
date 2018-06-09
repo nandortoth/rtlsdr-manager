@@ -35,7 +35,7 @@ namespace RtlSdrManager
         #region Fields
 
         /// <summary>
-        /// Dictionary for managed (opened) RTL-SDR devices.
+        /// Dictionary for the managed (opened) RTL-SDR devices.
         /// </summary>
         private readonly Dictionary<string, RtlSdrManagedDevice> _managedDevices;
 
@@ -48,7 +48,12 @@ namespace RtlSdrManager
         /// </summary>
         public RtlSdrDeviceManager()
         {
+            // Initialize the dictionary for the managed devices.
             _managedDevices = new Dictionary<string, RtlSdrManagedDevice>();
+            
+            // Initialize the list for the devices on the system, and fill it up.
+            Devices = new Dictionary<uint, DeviceInfo>();
+            Devices = GetAllDeviceInfo();
         }
 
         /// <summary>
@@ -89,41 +94,17 @@ namespace RtlSdrManager
         /// <summary>
         /// Return the basic data of the supported RTL-SDR devices on the system.
         /// </summary>
-        /// <exception cref="RtlSdrDeviceException"></exception>
-        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-        public static IEnumerable<DeviceInfo> Devices
-        {
-            get
-            {
-                // Check the number of the devices on the system.
-                var deviceCount = CountDevices;
+        public Dictionary<uint, DeviceInfo> Devices { get; }
 
-                // If there is no device on the system, throw an exception.
-                if (deviceCount == 0)
-                {
-                    throw new RtlSdrDeviceException("There is no supported RTL-SDR device on the system.");
-                }
+        #endregion
 
-                // Create the list, which will contain the devices.
-                var devices = new List<DeviceInfo>();
-
-                // Iterate the devices.
-                for (uint i = 0; i < deviceCount; i++)
-                {
-                    // If everything is good, add the device to the list.
-                    devices.Add(GetDeviceInfo(i));
-                }
-
-                // Return the list.
-                return devices;
-            }
-        }
-
+        #region Methods
+        
         /// <summary>
         /// Get fundamental infomation about the device.
         /// </summary>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-        public static DeviceInfo GetDeviceInfo(uint deviceIndex)
+        private static DeviceInfo GetDeviceInfo(uint deviceIndex)
         {
             // Create buffers, where the results will be stored.
             var serialBuffer = new StringBuilder(256);
@@ -149,10 +130,36 @@ namespace RtlSdrManager
                 productBuffer.ToString(), nameBuffer);
         }
 
-        #endregion
+        /// <summary>
+        /// Get fundamental information about all the devices on the system.
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="RtlSdrDeviceException"></exception>
+        private static Dictionary<uint, DeviceInfo> GetAllDeviceInfo()
+        {
+            // Check the number of the devices on the system.
+            var deviceCount = CountDevices;
 
-        #region Methods
+            // If there is no device on the system, throw an exception.
+            if (deviceCount == 0)
+            {
+                throw new RtlSdrDeviceException("There is no supported RTL-SDR device on the system.");
+            }
 
+            // Create the list, which will contain the devices.
+            var devices = new Dictionary<uint, DeviceInfo>();
+
+            // Iterate the devices.
+            for (uint i = 0; i < deviceCount; i++)
+            {
+                // If everything is good, add the device to the list.
+                devices.Add(i, GetDeviceInfo(i));
+            }
+
+            // Return the list.
+            return devices;
+        }
+        
         /// <summary>
         /// Open RTL-SDR device for further usage.
         /// </summary>
@@ -169,7 +176,7 @@ namespace RtlSdrManager
             }
 
             // Create a new RtlSdrManagedDevice instance.
-            var managedDevice = new RtlSdrManagedDevice(index);
+            var managedDevice = new RtlSdrManagedDevice(Devices[index]);
 
             // Add the device to the dictionary.
             _managedDevices.Add(friendlyName, managedDevice);
