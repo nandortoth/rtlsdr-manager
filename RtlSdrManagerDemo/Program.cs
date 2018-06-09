@@ -29,7 +29,7 @@ namespace RtlSdrManager.Demo
         public static void Main()
         {
             // Check the available devices.
-            if (RtlSdrDeviceManager.CountDevices == 0)
+            if (RtlSdrDeviceManager.Instance.CountDevices == 0)
             {
                 Console.Clear();
                 Console.WriteLine("There is no RTL-SDR device on the system.");

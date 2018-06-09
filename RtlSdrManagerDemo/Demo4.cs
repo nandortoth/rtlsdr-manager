@@ -35,7 +35,7 @@ namespace RtlSdrManager.Demo
         public static void Run()
         {
             // Initialize the Manager instance.
-            var manager = new RtlSdrDeviceManager();
+            var manager = RtlSdrDeviceManager.Instance;
 
             // Go through on all the devices on the system.
             Console.WriteLine("AVAILABLE DEVICES");
@@ -50,7 +50,7 @@ namespace RtlSdrManager.Demo
 
             // Quick check about the devices, before opening any device.
             Console.WriteLine("DETAILS - BEFORE MANAGING ANY OF THEM");
-            Console.WriteLine($"  Number of device(s) on the system: {RtlSdrDeviceManager.CountDevices}\n" +
+            Console.WriteLine($"  Number of device(s) on the system: {manager.CountDevices}\n" +
                               $"  Managed device(s) on the system:   {manager.CountManagedDevices}\n");
 
             // Open a managed device and set some parameters.
@@ -65,7 +65,7 @@ namespace RtlSdrManager.Demo
 
             // Quick check about the devices, after opening one.
             Console.WriteLine("DETAILS - AFTER OPENING ONE");
-            Console.WriteLine($"  Number of device(s) on the system: {RtlSdrDeviceManager.CountDevices}\n" +
+            Console.WriteLine($"  Number of device(s) on the system: {manager.CountDevices}\n" +
                               $"  Managed device(s) on the system:   {manager.CountManagedDevices}\n");
 
 

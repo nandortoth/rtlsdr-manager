@@ -35,7 +35,7 @@ namespace RtlSdrManager.Demo
         public static void Run()
         {
             // Initialize the Manager instance.
-            var manager = new RtlSdrDeviceManager();
+            var manager = RtlSdrDeviceManager.Instance;
 
             // Open a managed device and set some parameters.
             manager.OpenManagedDevice(0, "my-rtl-sdr");

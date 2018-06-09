@@ -18,7 +18,7 @@ nuget install RtlSdrManager
 Handling RTL-SDR device:
 ```csharp
 // Initialize the Manager instance.
-var manager = new RtlSdrDeviceManager();
+var manager = RtlSdrDeviceManager.Instance;
 
 // Open a managed device and set some parameters.
 manager.OpenManagedDevice(0, "my-rtl-sdr");
@@ -51,6 +51,11 @@ Console.WriteLine(data);
 ```
 
 ## Release Notes
+
+v0.2.0 - June 10, 2018
+
+* Bugfix in DeviceInfo handling
+* Implement singleton pattern for RtlSdrDeviceManager
 
 v0.1.3 - June 9, 2018
 

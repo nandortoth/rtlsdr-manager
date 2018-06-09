@@ -35,10 +35,16 @@ namespace RtlSdrManager
         #region Fields
 
         /// <summary>
+        /// Lazy singleton pattern.
+        /// </summary>
+        private static readonly Lazy<RtlSdrDeviceManager> Singleton =
+            new Lazy<RtlSdrDeviceManager>(() => new RtlSdrDeviceManager());
+        
+        /// <summary>
         /// Dictionary for the managed (opened) RTL-SDR devices.
         /// </summary>
         private readonly Dictionary<string, RtlSdrManagedDevice> _managedDevices;
-
+        
         #endregion
 
         #region Constructor and Indexer
@@ -46,7 +52,7 @@ namespace RtlSdrManager
         /// <summary>
         /// Create a new RtlSdrDeviceManager instance for RTL-SDR devices.
         /// </summary>
-        public RtlSdrDeviceManager()
+        private RtlSdrDeviceManager()
         {
             // Initialize the dictionary for the managed devices.
             _managedDevices = new Dictionary<string, RtlSdrManagedDevice>();
@@ -80,6 +86,11 @@ namespace RtlSdrManager
         #endregion
 
         #region Properties
+        
+        /// <summary>
+        /// Return the instance (singleton pattern)
+        /// </summary>
+        public static RtlSdrDeviceManager Instance => Singleton.Value;
 
         /// <summary>
         /// Return the amount of the managed devices.
@@ -89,7 +100,7 @@ namespace RtlSdrManager
         /// <summary>
         /// Return the amount of the supported RTL-SDR devices on the system.
         /// </summary>
-        public static uint CountDevices => RtlSdrLibraryWrapper.rtlsdr_get_device_count();
+        public int CountDevices => Devices.Count;
 
         /// <summary>
         /// Return the basic data of the supported RTL-SDR devices on the system.
@@ -138,7 +149,7 @@ namespace RtlSdrManager
         private static Dictionary<uint, DeviceInfo> GetAllDeviceInfo()
         {
             // Check the number of the devices on the system.
-            var deviceCount = CountDevices;
+            var deviceCount = RtlSdrLibraryWrapper.rtlsdr_get_device_count();
 
             // If there is no device on the system, throw an exception.
             if (deviceCount == 0)

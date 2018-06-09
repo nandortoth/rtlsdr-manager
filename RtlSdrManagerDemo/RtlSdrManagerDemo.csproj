@@ -2,12 +2,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>netcoreapp2.1;netcoreapp2.0</TargetFrameworks>
-    <Version>0.1.3</Version>
-    <FileVersion>0.1.3.0</FileVersion>
-    <AssemblyVersion>0.1.3.0</AssemblyVersion>
+    <Version>0.2.0</Version>
+    <FileVersion>0.2.0.0</FileVersion>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
     <Authors>Nandor Toth</Authors>
     <Product>RTL-SDR Manager Library for .NET Core</Product>
-    <ProductVersion>0.1.3.0</ProductVersion>
+    <ProductVersion>0.2.0.0</ProductVersion>
     <LangVersion>7.2</LangVersion>
     <AssemblyName>RtlSdrManager.Demo</AssemblyName>
     <RootNamespace>RtlSdrManager.Demo</RootNamespace>
