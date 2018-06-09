@@ -118,7 +118,7 @@ namespace RtlSdrManager
                 return devices;
             }
         }
-        
+
         /// <summary>
         /// Get fundamental infomation about the device.
         /// </summary>

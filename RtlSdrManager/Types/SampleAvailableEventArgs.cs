@@ -17,7 +17,7 @@
 using System;
 
 namespace RtlSdrManager.Types
-{   
+{
     /// <summary>
     /// Event arguments for SamplesAvailable event.
     /// </summary>

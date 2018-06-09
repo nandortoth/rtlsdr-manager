@@ -31,17 +31,17 @@ namespace RtlSdrManager.Types
             Rtl2832Frequency = rtl2832Frequency;
             TunerFrequency = tunerFrequency;
         }
-        
+
         /// <summary>
         /// Frequency value used to clock the RTL2832.
         /// </summary>
         public Frequency Rtl2832Frequency { get; }
-        
+
         /// <summary>
         /// Frequency value used to clock the tuner IC.
         /// </summary>
         public Frequency TunerFrequency { get; }
-        
+
         /// <summary>
         /// Override ToString method.
         /// </summary>

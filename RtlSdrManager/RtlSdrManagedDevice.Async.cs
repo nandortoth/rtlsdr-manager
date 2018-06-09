@@ -82,13 +82,13 @@ namespace RtlSdrManager
         /// Maximum size of async I/Q buffer.
         /// </summary>
         public uint MaxAsyncBufferSize { get; set; }
-        
+
         /// <summary>
         /// Define the behavior if the buffer is full.
         /// Drop samples (true), or throw exception (false).
         /// </summary>
         public bool DropSamplesOnFullBuffer { get; set; }
-        
+
         /// <summary>
         /// Counter for dropped I/Q samples.
         /// It is possible to reset the counter with <see cref="ResetDroppedSamplesCounter"/>.
@@ -126,7 +126,7 @@ namespace RtlSdrManager
 
             // Initialize the local buffer.
             var iqData = new List<IQData>();
-            
+
             // Check the available samples in the async buffer.
             if (maxCount > _asyncBuffer.Count)
             {
@@ -171,10 +171,10 @@ namespace RtlSdrManager
 
             // Get the context target (actual instance of RtlSdrManagedDevice).
             var target = (RtlSdrManagedDevice) context.Target;
-            
+
             // Count of I/Q data.
             var length = (int) len / 2;
-            
+
             // Check the the async buffer usage.
             if (target._asyncBuffer.Count + length >= target.MaxAsyncBufferSize)
             {
@@ -187,15 +187,15 @@ namespace RtlSdrManager
                         $"Maximum buffer size: {target.MaxAsyncBufferSize} I/Q samples, " +
                         $"Device index: {target.DeviceInfo.Index}.");
                 }
-                
+
                 // Drop samples, since the async buffer is full, but increase the counter.
                 target.DroppedSamplesCount += (uint) length;
-                return;               
+                return;
             }
-            
+
             // Add the samples to the async buffer.
             for (var i = 0; i < length; i++)
-            {               
+            {
                 var iqData = new IQData(*buf++, *buf++);
                 target._asyncBuffer.Enqueue(iqData);
             }

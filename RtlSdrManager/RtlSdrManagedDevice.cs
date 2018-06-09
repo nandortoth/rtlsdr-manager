@@ -60,7 +60,7 @@ namespace RtlSdrManager
         /// Tuner bandwidth selection mode of the RTL-SDR device;
         /// </summary>
         private TunerBandwidthSelectionModes _tunerBandwidthSelectionMode;
-        
+
         /// <summary>
         /// Tuner bandwidth of the RTL-SDR device;
         /// </summary>
@@ -129,16 +129,16 @@ namespace RtlSdrManager
 
             // Set the test mode to disabled.
             // The initialization is necessary, to be sure that it will happen once.
-            TestMode = TestModes.Disabled;   
-            
+            TestMode = TestModes.Disabled;
+
             // Set the bandwidth selection mode to automatic.
             // The initialization is necessary, to be sure that it will happen once.
             TunerBandwidthSelectionMode = TunerBandwidthSelectionModes.Automatic;
-         
+
             // Set the default value of maximum async I/Q buffer.
             // The initialization is necessary, to be sure that it will happen once.
             MaxAsyncBufferSize = AsyncDefaultReadLength * 4;
-            
+
             // Set the default value of behavior when the buffer is full.
             // The initialization is necessary, to be sure that it will happen once.
             DropSamplesOnFullBuffer = false;
@@ -300,7 +300,7 @@ namespace RtlSdrManager
                 }
 
                 // Return the value.
-                return new CrystalFrequency(new Frequency(rtl2832Frequency), new Frequency(tunerFrequency));          
+                return new CrystalFrequency(new Frequency(rtl2832Frequency), new Frequency(tunerFrequency));
             }
             set
             {
@@ -311,7 +311,7 @@ namespace RtlSdrManager
                         "Problem happened during setting the crystal frequencies of the device. " +
                         $"Wrong frequency was given: {value}.");
                 }
-                
+
                 // Set the new value on the device.
                 var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_xtal_freq(_devicePointer,
                     value.Rtl2832Frequency.Hz, value.TunerFrequency.Hz);
@@ -416,7 +416,7 @@ namespace RtlSdrManager
                     case TunerBandwidthSelectionModes.Automatic:
                         // Set the new value on the device.
                         var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_tuner_bandwidth(_devicePointer, 0);
-                        
+
                         // If we did not get 0, there is an error.
                         if (returnValue != 0)
                         {
@@ -424,8 +424,9 @@ namespace RtlSdrManager
                                 "Problem happened during setting the tuner gain mode of the device. " +
                                 $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                         }
+
                         break;
-                    
+
                     // Manual.
                     case TunerBandwidthSelectionModes.Manual:
                         // Set the bandwidth to zero.
@@ -469,7 +470,7 @@ namespace RtlSdrManager
                         "it is not possible to use the TunerBandwidth property. " +
                         $"Device index: {DeviceInfo.Index}.");
                 }
-                
+
                 // Set the tuner bandwidth for the device
                 var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_tuner_bandwidth(_devicePointer, value.Hz);
 
@@ -480,7 +481,7 @@ namespace RtlSdrManager
                         "Problem happened during setting the tuner bandwidth of the device. " +
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
-                
+
                 // Since there is no get function in librtlsdr, store the value.
                 _tunerBandwidth = value;
             }
@@ -662,7 +663,7 @@ namespace RtlSdrManager
             {
                 // Set the new value on the device.
                 var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_freq_correction(_devicePointer, value);
-                
+
                 // If the returned value is -2, it means, that the value was same as previously.
                 // Hide this error.
                 if (returnValue == -2)
@@ -706,7 +707,7 @@ namespace RtlSdrManager
             {
                 // Set the new value on the device.
                 var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_direct_sampling(_devicePointer, (int) value);
-                
+
                 // If we did not get 0, there is an error.
                 if (returnValue != 0)
                 {
@@ -716,7 +717,7 @@ namespace RtlSdrManager
                 }
             }
         }
-        
+
         /// <summary>
         /// Offset tuning mode for zero-IF tuners.
         /// </summary>
@@ -743,7 +744,7 @@ namespace RtlSdrManager
             {
                 // Set the new value on the device.
                 var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_offset_tuning(_devicePointer, (int) value);
-                
+
                 // If we did not get 0, there is an error.
                 if (returnValue != 0)
                 {
@@ -819,7 +820,7 @@ namespace RtlSdrManager
             // Check to see if Dispose has already been called.
             if (_disposed)
                 return;
-            
+
             // Stop async reading
             StopReadSamplesAsync();
 

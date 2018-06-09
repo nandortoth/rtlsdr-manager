@@ -51,7 +51,7 @@ namespace RtlSdrManager.Demo
             // Use cancellation token.
             var cts = new CancellationTokenSource();
             var token = cts.Token;
-            
+
             // Start asynchronous sample reading.
             manager["my-rtl-sdr"].StartReadSamplesAsync();
 
@@ -61,7 +61,7 @@ namespace RtlSdrManager.Demo
                 // Counter for demo purposes.
                 // Only every seventy-five thousandth data will be showed.
                 var counter = 0;
-                
+
                 // Read samples from the buffer, till cancellation request.
                 while (!token.IsCancellationRequested)
                 {
@@ -85,7 +85,7 @@ namespace RtlSdrManager.Demo
                     {
                         continue;
                     }
-                    
+
                     // Show the data.
                     Console.WriteLine(data);
                     counter = 0;
