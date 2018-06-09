@@ -64,7 +64,7 @@ v0.1.3 - June 9, 2018
 v0.1.2 - June 3, 2018
 
 * Handling crystal frequencies (RTL2832, IC)
-* Support tuner bandwith selection (Automatic, Manual)
+* Support tuner bandwidth selection (Automatic, Manual)
 * Support direct sampling (I-ADC, Q-ADC)
 * Support offset tuning mode for zero-IF tuners
 
