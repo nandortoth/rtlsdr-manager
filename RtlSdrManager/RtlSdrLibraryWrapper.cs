@@ -120,7 +120,7 @@ namespace RtlSdrManager
         /// Set crystal oscillator frequencies used for the RTL2832 and the tuner IC.
         /// Usually both ICs use the same clock. Changing the clock may make sense if
         /// you are applying an external clock to the tuner or to compensate the
-        /// frequency (and samplerate) error caused by the original (cheap) crystal.
+        /// frequency (and sample rate) error caused by the original (cheap) crystal.
         /// 
         /// NOTE: Call this function only if you fully understand the implications.
         /// </summary>
@@ -203,7 +203,7 @@ namespace RtlSdrManager
 
         /// <summary>
         /// Get a list of gains supported by the tuner.
-        /// NOTE: The gains argument must be preallocated by the caller. If NULL is
+        /// NOTE: The gains argument must be allocated by the caller. If NULL is
         /// being given instead, the number of available gain values will be returned.
         /// </summary>
         /// <param name="dev">Device pointer.</param>
@@ -259,7 +259,7 @@ namespace RtlSdrManager
         /// Enable or disable the direct sampling mode. When enabled, the IF mode
         /// of the RTL2832 is activated, and rtlsdr_set_center_freq() will control
         /// the IF-frequency of the DDC, which can be used to tune from 0 to 28.8 MHz
-        /// (xtal frequency of the RTL2832).
+        /// (crystal frequency of the RTL2832).
         /// </summary>
         /// <param name="dev">Device pointer.</param>
         /// <param name="on">0 means disabled, 1 I-ADC input enabled, 2 Q-ADC input enabled.</param>
@@ -307,7 +307,7 @@ namespace RtlSdrManager
         internal static extern int rtlsdr_get_offset_tuning(IntPtr dev);
 
         /// <summary>
-        /// Set the sample rate for the device, also selects the baseband filters
+        /// Set the sample rate for the device, also selects the base band filters
         /// according to the requested sample rate for tuners where this is possible.
         /// </summary>
         /// <param name="dev">Device pointer.</param>

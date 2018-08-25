@@ -23,7 +23,7 @@ namespace RtlSdrManager.Demo
     /// Demo for RtlSdrManager.
     /// 
     /// In this demo:
-    ///   - Samples will be readed synchronously.
+    ///   - Samples will be received synchronously.
     ///   - Simply print the first 5 samples.
     /// </summary>
     public static class Demo3

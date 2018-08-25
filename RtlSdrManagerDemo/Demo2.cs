@@ -25,8 +25,8 @@ namespace RtlSdrManager.Demo
     /// Demo for RtlSdrManager.
     /// 
     /// In this demo:
-    ///   - Samples will be readed asynchronously.
-    ///   - Samples will be readed directly from the buffer.
+    ///   - Samples will be received asynchronously.
+    ///   - Samples will be received directly from the buffer.
     /// </summary>
     public static class Demo2
     {
@@ -92,7 +92,7 @@ namespace RtlSdrManager.Demo
                 }
             }, token);
 
-            // Create a separated task, which continously check the buffer's size.
+            // Create a separated task, which continuously check the buffer's size.
             Task.Factory.StartNew(() =>
             {
                 while (!token.IsCancellationRequested)

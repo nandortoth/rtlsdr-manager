@@ -82,7 +82,7 @@ namespace RtlSdrManager.Demo
                                   $"    {"Center frequency",-22}: {device.CenterFrequency.MHz} MHz\n" +
                                   $"    {"Crystal frequency",-22}: {device.CrystalFrequency}\n" +
                                   $"    {"Frequency correction",-22}: {device.FrequencyCorrection} ppm\n" +
-                                  $"    {"Bandwith selection:",-22}: {device.TunerBandwidthSelectionMode}\n" +
+                                  $"    {"Bandwidth selection:",-22}: {device.TunerBandwidthSelectionMode}\n" +
                                   $"    {"Sample rate",-22}: {device.SampleRate.MHz} MHz\n" +
                                   $"    {"Direct sampling mode",-22}: {device.DirectSamplingMode}\n" +
                                   $"    {"AGC mode",-22}: {device.AGCMode}\n" +
@@ -92,7 +92,7 @@ namespace RtlSdrManager.Demo
                 Console.Write($"    {"Supported tuner gains",-22}: ");
 
                 // Display supported gains in a fancy format.
-                for (var i = 0; i < device.SupportedTunerGains.Count(); i++)
+                for (var i = 0; i < device.SupportedTunerGains.Count; i++)
                 {
                     if (i % 5 == 0 && i != 0)
                     {

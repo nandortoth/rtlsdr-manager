@@ -24,7 +24,7 @@ namespace RtlSdrManager.Demo
     /// Demo for RtlSdrManager.
     /// 
     /// In this demo:
-    ///   - Samples will be readed asynchronously.
+    ///   - Samples will be received asynchronously.
     ///   - Samples will be handled by SamplesAvailable event.
     /// </summary>
     public static class Demo1

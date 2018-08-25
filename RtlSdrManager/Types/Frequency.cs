@@ -41,12 +41,12 @@ namespace RtlSdrManager.Types
         }
 
         /// <summary>
-        /// Property for handling frequenczy in Hz.
+        /// Property for handling frequency in Hz.
         /// </summary>
         public uint Hz { get; set; }
 
         /// <summary>
-        /// Property for handling frequenczy in KHz.
+        /// Property for handling frequency in KHz.
         /// </summary>
         public double KHz
         {
@@ -65,7 +65,7 @@ namespace RtlSdrManager.Types
         }
 
         /// <summary>
-        /// Property for handling frequenczy in MHz.
+        /// Property for handling frequency in MHz.
         /// </summary>
         public double MHz
         {
@@ -84,7 +84,7 @@ namespace RtlSdrManager.Types
         }
 
         /// <summary>
-        /// Property for handling frequenczy in GHz.
+        /// Property for handling frequency in GHz.
         /// </summary>
         public double GHz
         {

@@ -171,7 +171,7 @@ namespace RtlSdrManager
                 if (tunerType == TunerTypes.Unknown)
                 {
                     throw new RtlSdrLibraryExecutionException(
-                        "The tunner type of the device isn't known." +
+                        "The tuner type of the device isn't known." +
                         $"Error code: {tunerType}, device index: {DeviceInfo.Index}.");
                 }
 

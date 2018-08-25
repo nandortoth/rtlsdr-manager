@@ -215,7 +215,7 @@ namespace RtlSdrManager
         }
 
         /// <summary>
-        /// Worker method to asynchroniously read data from the RTL-SDR device.
+        /// Worker method to asynchronously read data from the RTL-SDR device.
         /// </summary>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
         private void SamplesAsyncReader(object readLength)
@@ -226,7 +226,7 @@ namespace RtlSdrManager
         }
 
         /// <summary>
-        /// Start reading samples (I/Q) from the device asynchroniously.
+        /// Start reading samples (I/Q) from the device asynchronously.
         /// </summary>
         /// <param name="requestedSamples">Amount of requested samples by one device read.</param>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
@@ -242,11 +242,11 @@ namespace RtlSdrManager
             if (_asyncWorker != null)
             {
                 throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during asynchronious data reading from the device. " +
+                    "Problem happened during asynchronous data reading from the device. " +
                     $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
             }
 
-            // Start the worker with normal priorty.
+            // Start the worker with normal priority.
             _asyncWorker = new Thread(SamplesAsyncReader)
             {
                 Priority = ThreadPriority.Highest
@@ -272,7 +272,7 @@ namespace RtlSdrManager
             if (returnCode != 0)
             {
                 throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during stopping asynchronious data reading. " +
+                    "Problem happened during stopping asynchronous data reading. " +
                     $"Error code: {returnCode}, device index: {DeviceInfo.Index}.");
             }
 

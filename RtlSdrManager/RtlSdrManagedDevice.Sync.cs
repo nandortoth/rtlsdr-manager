@@ -65,7 +65,7 @@ namespace RtlSdrManager
                     $"Error code: {returnCode}, requested bytes: {requestedBytes}, device index: {DeviceInfo.Index}.");
             }
 
-            // Amount of the readed bytes is different than the requested.
+            // Amount of the received bytes is different than the requested.
             if (receivedBytes != requestedBytes)
             {
                 throw new RtlSdrLibraryExecutionException(

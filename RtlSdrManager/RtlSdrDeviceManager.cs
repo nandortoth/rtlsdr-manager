@@ -112,7 +112,7 @@ namespace RtlSdrManager
         #region Methods
         
         /// <summary>
-        /// Get fundamental infomation about the device.
+        /// Get fundamental information about the device.
         /// </summary>
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
         private static DeviceInfo GetDeviceInfo(uint deviceIndex)
