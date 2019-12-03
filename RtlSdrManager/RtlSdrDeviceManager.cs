@@ -176,8 +176,9 @@ namespace RtlSdrManager
         /// </summary>
         /// <param name="index">Index of the device.</param>
         /// <param name="friendlyName">Friendly name of the device, later this can be used as a reference.</param>
+        /// <returns>RtlSdrManagedDevice</returns>
         /// <exception cref="IndexOutOfRangeException"></exception>
-        public void OpenManagedDevice(uint index, string friendlyName)
+        public RtlSdrManagedDevice OpenManagedDevice(uint index, string friendlyName)
         {
             // Do we have device with this name?
             if (_managedDevices.ContainsKey(friendlyName))
@@ -191,6 +192,8 @@ namespace RtlSdrManager
 
             // Add the device to the dictionary.
             _managedDevices.Add(friendlyName, managedDevice);
+
+            return managedDevice;
         }
 
         /// <summary>
