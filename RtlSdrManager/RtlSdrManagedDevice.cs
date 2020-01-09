@@ -793,6 +793,28 @@ namespace RtlSdrManager
             TunerGain = SupportedTunerGains.Min();
         }
 
+        public void SetGPIOState(int gpio, bool on)
+        {
+            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_gpio(_devicePointer, on ? 1 : 0, gpio);
+
+            // If we did not get 0, there is an error.
+            if (returnValue != 0)
+            {
+                throw new RtlSdrLibraryExecutionException($"Problem happened during setting the GPIO {gpio} state of the device to {on}. Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+            }
+        }
+
+        public void SetBiasTeeState(bool on)
+        {
+            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_bias_tee(_devicePointer, on ? 1 : 0);
+
+            // If we did not get 0, there is an error.
+            if (returnValue != 0)
+            {
+                throw new RtlSdrLibraryExecutionException($"Problem happened during setting the bias tee of the device to {on}. Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+            }
+        }
+
         #endregion
 
         #region Close and Implementing IDispose and ToString

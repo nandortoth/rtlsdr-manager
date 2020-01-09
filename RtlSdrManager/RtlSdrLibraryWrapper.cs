@@ -401,5 +401,28 @@ namespace RtlSdrManager
         [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_bias_tee",
             CallingConvention = CallingConvention.Cdecl)]
         internal static extern int rtlsdr_set_bias_tee(IntPtr dev, int on);
+
+        /// <summary>
+        /// Generic GPIO enable or disable
+        /// </summary>
+        /// <param name="dev">Device pointer.</param>
+        /// <param name="on">1 for GPIO on. 0 for GPIO off.</param>
+        /// <param name="gpio">GPIO pin to enable or disable.</param>
+        /// <returns>0 on success. -1 on error.</returns>
+        [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_gpio",
+            CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int rtlsdr_set_gpio(IntPtr dev, int on, int gpio);
+
+        /// <summary>
+        /// Enable or disable frequency dithering for r820t tuners.
+        /// Must be performed before freq_set().
+        /// Fails for other tuners.
+        /// </summary>
+        /// <param name="dev">Device pointer.</param>
+        /// <param name="dither">1 for dither on. 0 for dither off.</param>
+        /// <returns>0 on success. -1 on error.</returns>
+        [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_dithering",
+            CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int rtlsdr_set_dithering(IntPtr dev, int dither);
     }
 }
