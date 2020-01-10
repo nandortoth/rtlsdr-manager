@@ -3,7 +3,7 @@
     <metadata>
         <id>RtlSdrManager</id>
         <title>RTL SDR Manager</title>
-        <version>0.2.0</version>
+        <version>0.2.1</version>
         <language>en-US</language>
         <authors>Nandor Toth</authors>
         <owners>nandortoth</owners>
@@ -15,7 +15,7 @@
         <description>.NET Core library to manage RTL-SDR devices. The library is a wrapper for librtlsdr, to read I/Q samples in asynchronous and synchronous modes.
         </description>
         <summary>.NET Core library to manage RTL-SDR devices</summary>
-        <copyright>Copyright ©2018 Nandor Toth</copyright>
+        <copyright>Copyright ©2020 Nandor Toth</copyright>
         <tags>rtl-sdr software-defined-radio sdr rtl2832u</tags>
     </metadata>
     <files>

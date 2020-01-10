@@ -14,8 +14,7 @@ if [ ! -d publish ]; then
 fi
 
 # Build the solution
-dotnet publish -f netcoreapp2.0 -c Release ../RtlSdrManager/RtlSdrManager.csproj -o ${RTLSDR_TEMPFOLDER}"/netcoreapp2.0"
-dotnet publish -f netcoreapp2.1 -c Release ../RtlSdrManager/RtlSdrManager.csproj -o ${RTLSDR_TEMPFOLDER}"/netcoreapp2.1"
+dotnet publish -f netcoreapp3.1 -c Release ../RtlSdrManager/RtlSdrManager.csproj -o ${RTLSDR_TEMPFOLDER}"/netcoreapp3.1"
 
 # Define the NuGet alias
 mono /usr/local/bin/nuget.exe pack RtlSdrManager.nuspec
