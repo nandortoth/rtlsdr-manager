@@ -1,5 +1,5 @@
 ﻿// RTL-SDR Manager Library for .NET Core
-// Copyright (C) 2018 Nandor Toth <dev@nandortoth.eu>
+// Copyright (C) 2020 Nandor Toth <dev@nandortoth.com>
 //  
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -82,12 +82,14 @@ namespace RtlSdrManager.Demo
                                   $"    {"Center frequency",-22}: {device.CenterFrequency.MHz} MHz\n" +
                                   $"    {"Crystal frequency",-22}: {device.CrystalFrequency}\n" +
                                   $"    {"Frequency correction",-22}: {device.FrequencyCorrection} ppm\n" +
-                                  $"    {"Bandwidth selection:",-22}: {device.TunerBandwidthSelectionMode}\n" +
+                                  $"    {"Bandwidth selection",-22}: {device.TunerBandwidthSelectionMode}\n" +
                                   $"    {"Sample rate",-22}: {device.SampleRate.MHz} MHz\n" +
                                   $"    {"Direct sampling mode",-22}: {device.DirectSamplingMode}\n" +
                                   $"    {"AGC mode",-22}: {device.AGCMode}\n" +
                                   $"    {"Tuner gain mode",-22}: {device.TunerGainMode}\n" +
                                   $"    {"Offset tuning mode",-22}: {device.OffsetTuningMode}\n" +
+                                  $"    {"KerberosSDR mode",-22}: {device.KerberosSDRMode}\n" +
+                                  $"    {"Frequency dithering",-22}: {device.FrequencyDitheringMode}\n" +
                                   $"    {"Test mode",-22}: {device.TestMode}");
                 Console.Write($"    {"Supported tuner gains",-22}: ");
 

@@ -1,5 +1,5 @@
 ﻿// RTL-SDR Manager Library for .NET Core
-// Copyright (C) 2018 Nandor Toth <dev@nandortoth.eu>
+// Copyright (C) 2020 Nandor Toth <dev@nandortoth.com>
 //  
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -57,14 +57,24 @@ namespace RtlSdrManager
         private TestModes _deviceTestMode;
 
         /// <summary>
-        /// Tuner bandwidth selection mode of the RTL-SDR device;
+        /// Frequency dithering of the RTL-SDR device.
+        /// </summary>
+        private FrequencyDitheringModes _frequencyDitheringMode;
+
+        /// <summary>
+        /// Tuner bandwidth selection mode of the RTL-SDR device.
         /// </summary>
         private TunerBandwidthSelectionModes _tunerBandwidthSelectionMode;
 
         /// <summary>
-        /// Tuner bandwidth of the RTL-SDR device;
+        /// Tuner bandwidth of the RTL-SDR device.
         /// </summary>
         private Frequency _tunerBandwidth;
+
+        /// <summary>
+        /// Enablement of KerberosSDR functionalities.
+        /// </summary>
+        private KerberosSDRModes _kerberosSDRMode;
 
         /// <summary>
         /// Device context for async read.
@@ -119,6 +129,15 @@ namespace RtlSdrManager
             // Set the device context.
             _deviceContext = GCHandle.Alloc(this);
 
+            // Set the test mode to disabled.
+            // Private variable is used for initialization, because this function is
+            // supported only by KerberosSDR devices.
+            _frequencyDitheringMode = FrequencyDitheringModes.NotSet;
+
+            // Enablement of KerberosSDR functionalities.
+            // The initialization is necessary, to be sure that it will happen once.
+            KerberosSDRMode = KerberosSDRModes.Disabled;
+
             // Set the tuner gain mode to automatic.
             // The initialization is necessary, to be sure that it will happen once.
             TunerGainMode = TunerGainModes.AGC;
@@ -155,6 +174,30 @@ namespace RtlSdrManager
         /// Fundamental information about the managed device.
         /// </summary>
         public DeviceInfo DeviceInfo { get; }
+
+        /// <summary>
+        /// Enablement of KerberosSDR functionalities:
+        /// FrequencyDitheringModes, GPIOStates
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public KerberosSDRModes KerberosSDRMode
+        {
+            get => _kerberosSDRMode;
+            set
+            {
+                // KerberosSDR functionalities cannot be disabled once it is enabled.
+                if (_kerberosSDRMode == KerberosSDRModes.Enabled &&
+                    value == KerberosSDRModes.Disabled)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "KerberosSDR functionalities cannot be disabled once it is enabled. " +
+                        $"Device index: {DeviceInfo.Index}.");
+                }
+
+                // Set the new value.
+                _kerberosSDRMode = value;
+            }
+        }
 
         /// <summary>
         /// Get the tuner type of the managed device.
@@ -753,6 +796,48 @@ namespace RtlSdrManager
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             }
+        }      
+
+        /// <summary>
+        /// Frequency dithering for R820T tuners.
+        /// Can be used only with the modified RTL-SDR library for KerberosSDR:
+        /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/
+        /// </summary>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public FrequencyDitheringModes FrequencyDitheringMode
+        {
+            get => _frequencyDitheringMode;
+            set
+            {
+                // This property can be used if the KerberosSDR mode is enabled and R820T is used.
+                if (KerberosSDRMode == KerberosSDRModes.Disabled ||
+                    TunerType != TunerTypes.R820T)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "FrequencyDitheringMode property can be used if the KerberosSDR mode is enabled and " +
+                        $"R820T is used. Tuner Type: {TunerType}, KerberosSDRMode: {KerberosSDRMode}, " +
+                        $"device index: {DeviceInfo.Index}.");
+                }
+
+                // The NotSet value cannot be used, it is for internal usage.
+                if (value == FrequencyDitheringModes.NotSet)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "FrequencyDitheringMode.NotSet value cannot be used, it is for internal usage. " +
+                        $"Device index: {DeviceInfo.Index}.");
+                }
+
+                // Set the new value on the device.
+                var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_dithering(_devicePointer, (int) value);
+
+                // If we did not get 0, there is an error.
+                if (returnValue != 0)
+                {
+                    throw new RtlSdrLibraryExecutionException(
+                        "Problem happened during setting frequency dithering mode of the device. " +
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                }
+            }
         }
 
         #endregion
@@ -793,25 +878,88 @@ namespace RtlSdrManager
             TunerGain = SupportedTunerGains.Min();
         }
 
-        public void SetGPIOState(int gpio, bool on)
+        /// <summary>
+        /// Enable or disable the Bias Tee on the GPIO pin 0.
+        /// </summary>
+        /// <param name="mode">Enabled, Disabled</param>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public void SetBiasTee(BiasTeeModes mode)
         {
-            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_gpio(_devicePointer, on ? 1 : 0, gpio);
+            // Set the new value on the device.
+            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_bias_tee(_devicePointer, (int) mode);
 
             // If we did not get 0, there is an error.
             if (returnValue != 0)
             {
-                throw new RtlSdrLibraryExecutionException($"Problem happened during setting the GPIO {gpio} state of the device to {on}. Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during setting Bias Tee mode of the device. " +
+                    $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+            }
+        }
+        
+        /// <summary>
+        /// Enable or disable the Bias Tee on the given GPIO pin.
+        /// The function is implemented for R820T only.
+        /// </summary>
+        /// <param name="gpio">The GPIO pin to configure as a Bias Tee control (0..7).</param>
+        /// <param name="mode">Enabled, Disabled</param>
+        /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+        public void SetBiasTeeGPIO(int gpio, BiasTeeModes mode)
+        {
+            // This method can be if R820T is used.
+            if (TunerType != TunerTypes.R820T)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "SetBiasTeeGPIO can be used if R820T is used. " +
+                    $"Tuner Type: {TunerType}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Check the GPIO number. R820T has 8 GPIO (0..7).
+            if (gpio < 0 || gpio > 7)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Wrong GPIO is used. R820T has 8 GPIO (0..7)." +
+                    $"GPIO: {gpio}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Set the new value on the device.
+            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_bias_tee_gpio(_devicePointer, gpio, (int) mode);
+
+            // If we did not get 0, there is an error.
+            if (returnValue != 0)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during setting Bias Tee mode of the device. " +
+                    $"Error code: {returnValue}, GPIO: {gpio}, device index: {DeviceInfo.Index}.");
             }
         }
 
-        public void SetBiasTeeState(bool on)
+        /// <summary>
+        /// Generic GPIO enable or disable.
+        /// Can be used only with the modified RTL-SDR library for KerberosSDR:
+        /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/
+        /// </summary>
+        /// <param name="gpio">The GPIO pin to.</param>
+        /// <param name="mode">Enabled, Disabled</param>
+        public void SetGPIO(int gpio, GPIOModes mode)
         {
-            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_bias_tee(_devicePointer, on ? 1 : 0);
+            // This property can be used if the KerberosSDR mode is enabled and R820T is used.
+            if (KerberosSDRMode == KerberosSDRModes.Disabled)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "SetGPIO method can be used if the KerberosSDR mode is enabled. " +
+                    $"KerberosSDRMode: {KerberosSDRMode}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Set the new value on the device.
+            var returnValue = RtlSdrLibraryWrapper.rtlsdr_set_gpio(_devicePointer, (int) mode, gpio);
 
             // If we did not get 0, there is an error.
             if (returnValue != 0)
             {
-                throw new RtlSdrLibraryExecutionException($"Problem happened during setting the bias tee of the device to {on}. Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during setting GPIO status of the device. " +
+                    $"Error code: {returnValue}, GPIO: {gpio}, device index: {DeviceInfo.Index}.");
             }
         }
 
@@ -819,9 +967,12 @@ namespace RtlSdrManager
 
         #region Close and Implementing IDispose and ToString
 
+        /// <summary>
+        /// Close the managed device.
+        /// </summary>
         internal void Close()
         {
-            // Close the managed device.
+            // Close the managed device via the wrapper.
             var returnCode = RtlSdrLibraryWrapper.rtlsdr_close(_devicePointer);
 
             // Other error was happened.

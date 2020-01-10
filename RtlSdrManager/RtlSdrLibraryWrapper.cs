@@ -49,7 +49,7 @@ namespace RtlSdrManager
     {
         /// <summary>
         /// The default RTL-SDR library.
-        /// Tested on Fedora 27/28, after "sudo dnf install rtl-sdr rtl-sdr-devel".
+        /// Tested on Fedora 30/31, after "sudo dnf install rtl-sdr rtl-sdr-devel".
         /// </summary>
         private const string RtlSdrLibrary = "librtlsdr";
 
@@ -393,34 +393,51 @@ namespace RtlSdrManager
         internal static extern int rtlsdr_cancel_async(IntPtr dev);
 
         /// <summary>
-        /// Enable or disable the bias tee on GPIO PIN 0.
+        /// Enable or disable the Bias Tee on GPIO pin 0.
         /// </summary>
         /// <param name="dev">Device pointer.</param>
-        /// <param name="on">1 for Bias T on. 0 for Bias T off.</param>
+        /// <param name="on">1 for Bias Tee on. 0 for Bias Tee off.</param>
         /// <returns>-1 if device is not initialized. 0 otherwise.</returns>
         [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_bias_tee",
             CallingConvention = CallingConvention.Cdecl)]
         internal static extern int rtlsdr_set_bias_tee(IntPtr dev, int on);
 
         /// <summary>
-        /// Generic GPIO enable or disable
+        /// Enable or disable the Bias Tee on the given GPIO pin.
         /// </summary>
         /// <param name="dev">Device pointer.</param>
-        /// <param name="on">1 for GPIO on. 0 for GPIO off.</param>
-        /// <param name="gpio">GPIO pin to enable or disable.</param>
-        /// <returns>0 on success. -1 on error.</returns>
+        /// <param name="gpio">The GPIO pin to configure as a Bias Tee control.</param>
+        /// <param name="on">1 for Bias Tee on. 0 for Bias Tee off.</param>
+        /// <returns>-1 if device is not initialized. 0 otherwise.</returns>
+        [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_bias_tee_gpio",
+            CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int rtlsdr_set_bias_tee_gpio(IntPtr dev, int gpio, int on);       
+
+        /// <summary>
+        /// Generic GPIO enable or disable.
+        /// Can be used only with the modified RTL-SDR library for KerberosSDR:
+        /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/
+        /// </summary>
+        /// <param name="dev">Device pointer.</param>
+        /// <param name="on">0 means disabled, 1 enabled.</param>
+        /// <param name="gpio">Number of the GPIO pin to enable or disable.</param>
+        /// <returns>
+        /// -1 on error
+        /// 0 on success
+        /// </returns>
         [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_gpio",
             CallingConvention = CallingConvention.Cdecl)]
         internal static extern int rtlsdr_set_gpio(IntPtr dev, int on, int gpio);
 
         /// <summary>
-        /// Enable or disable frequency dithering for r820t tuners.
-        /// Must be performed before freq_set().
-        /// Fails for other tuners.
+        /// Enable or disable frequency dithering for R820T tuners. Fails for other tuners.
+        /// Must be performed before setting the central frequency.
+        /// Can be used only with the modified RTL-SDR library for KerberosSDR:
+        /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/ 
         /// </summary>
         /// <param name="dev">Device pointer.</param>
-        /// <param name="dither">1 for dither on. 0 for dither off.</param>
-        /// <returns>0 on success. -1 on error.</returns>
+        /// <param name="dither">0 means disabled, 1 enabled.</param>
+        /// <returns>0 on success.</returns>
         [DllImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_dithering",
             CallingConvention = CallingConvention.Cdecl)]
         internal static extern int rtlsdr_set_dithering(IntPtr dev, int dither);

@@ -16,6 +16,7 @@ nuget install RtlSdrManager
 ## Usage
 
 Handling RTL-SDR device:
+
 ```csharp
 // Initialize the Manager instance.
 var manager = RtlSdrDeviceManager.Instance;
@@ -32,12 +33,14 @@ manager["my-rtl-sdr"].ResetDeviceBuffer();
 ```
 
 Asynchronous sample reading from the device:
+
 ```csharp
 // Start asynchronous sample reading.
 manager["my-rtl-sdr"].StartReadSamplesAsync();
 ```
 
 Read samples from the buffer:
+
 ```csharp
 // Dequeue from the buffer.
 if (!manager["my-rtl-sdr"].AsyncBuffer.TryDequeue(out var data))
@@ -50,7 +53,24 @@ if (!manager["my-rtl-sdr"].AsyncBuffer.TryDequeue(out var data))
 Console.WriteLine(data);
 ```
 
+Using KerberosSDR related functions:
+
+```csharp
+// Enable KerberosSDR mode.
+manager["my-rtl-sdr"].KerberosSDRMode = KerberosSDRModes.Enabled;
+
+// Using frequency dithering and configuring GPIO directly.
+manager["my-rtl-sdr"].FrequencyDitheringMode = FrequencyDitheringModes.Enabled;
+manager["my-rtl-sdr"].SetGPIO(1, GPIOModes.Enabled);
+```
+
 ## Release Notes
+
+v0.2.1 - January 10, 2020
+
+* Implement KerberosSDR related features (frequency dithering, direct GPIO control)
+* Implement Bias Tee settings
+* Minor fixes in the documentation
 
 v0.2.0 - June 10, 2018
 
