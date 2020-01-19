@@ -906,11 +906,11 @@ namespace RtlSdrManager
         /// <exception cref="RtlSdrLibraryExecutionException"></exception>
         public void SetBiasTeeGPIO(int gpio, BiasTeeModes mode)
         {
-            // This method can be if R820T is used.
+            // This method can be executed if R820T is used.
             if (TunerType != TunerTypes.R820T)
             {
                 throw new RtlSdrLibraryExecutionException(
-                    "SetBiasTeeGPIO can be used if R820T is used. " +
+                    "SetBiasTeeGPIO can be executed if R820T is used. " +
                     $"Tuner Type: {TunerType}, device index: {DeviceInfo.Index}.");
             }
 
@@ -949,6 +949,22 @@ namespace RtlSdrManager
                 throw new RtlSdrLibraryExecutionException(
                     "SetGPIO method can be used if the KerberosSDR mode is enabled. " +
                     $"KerberosSDRMode: {KerberosSDRMode}, device index: {DeviceInfo.Index}.");
+            }
+
+            // This method can be executed if R820T is used.
+            if (TunerType != TunerTypes.R820T)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "SetGPIO can be executed if R820T is used. " +
+                    $"Tuner Type: {TunerType}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Check the GPIO number. R820T has 8 GPIO (0..7).
+            if (gpio < 0 || gpio > 7)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Wrong GPIO is used. R820T has 8 GPIO (0..7)." +
+                    $"GPIO: {gpio}, device index: {DeviceInfo.Index}.");
             }
 
             // Set the new value on the device.
