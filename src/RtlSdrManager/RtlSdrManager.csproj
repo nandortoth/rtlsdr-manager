@@ -1,0 +1,100 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <!-- Assembly Information -->
+    <PropertyGroup>
+        <Version>0.5.0</Version>
+        <FileVersion>0.5.0.0</FileVersion>
+        <AssemblyVersion>0.5.0.0</AssemblyVersion>
+        <Authors>Nandor Toth</Authors>
+        <Company>Nandor Toth</Company>
+        <Product>RTL-SDR Manager Library for .NET</Product>
+    </PropertyGroup>
+
+    <!-- NuGet Package Metadata -->
+    <PropertyGroup>
+        <PackageId>RtlSdrManager</PackageId>
+        <Title>RTL-SDR Manager for .NET</Title>
+        <Description>A modern .NET library for managing RTL-SDR devices with support for async operations, multiple tuner types, and advanced features.</Description>
+        <PackageTags>rtl-sdr;sdr;radio;rtl2832;software-defined-radio;rf;tuner</PackageTags>
+        <PackageProjectUrl>https://github.com/nandortoth/rtlsdr-manager</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/nandortoth/rtlsdr-manager</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Copyright>Copyright (c) 2018-2025 Nandor Toth</Copyright>
+    </PropertyGroup>
+
+    <!-- NuGet Package Build Settings -->
+    <PropertyGroup>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <!-- Release Notes -->
+    <PropertyGroup>
+        <PackageReleaseNotes>
+            v0.5.0 (2025-10-25):
+
+            BREAKING CHANGES:
+            - Migrated from .NET Core 3.1 to .NET 9.0
+            - Namespace reorganization (Modes/, Hardware/, Interop/)
+            - Project restructured into src/ and samples/ directories
+            - Modernized value types (Frequency, DeviceInfo, CrystalFrequency)
+
+            NEW FEATURES:
+            - Windows support in native library resolver
+            - IComparable support for Frequency type
+            - Improved frequency arithmetic with overflow protection
+            - Source Link support for debugging NuGet packages
+            - Comprehensive .editorconfig with 60+ code quality rules
+            - Performance analyzers (CA1827, CA1829, CA1841, CA1851)
+            - Security analyzers for P/Invoke (CA2101, CA3075, CA5350, CA5351)
+            - Standard exception constructors for all custom exceptions
+            - Input validation with proper exception types
+
+            IMPROVEMENTS:
+            - Replaced DllImport with LibraryImport for better performance
+            - Implemented proper dispose pattern with managed/unmanaged separation
+            - Added comprehensive XML documentation
+            - Cross-platform build support (LF line endings)
+            - Build scripts (build.sh, runsample.sh)
+
+            FIXES:
+            - Proper resource disposal in async samples
+            - Clear error messages for invalid device indices
+            - Finalizer no longer accesses disposed managed resources
+
+            See CHANGELOG.md for complete details and upgrade guide.
+        </PackageReleaseNotes>
+    </PropertyGroup>
+
+    <!-- Package Icon -->
+    <PropertyGroup>
+        <PackageIcon>RtlSdrManager.Icon.128.png</PackageIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="../../design/icon/RtlSdrManager.Icon.128.png" Pack="true" PackagePath="/" />
+    </ItemGroup>
+
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="../../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
+
+    <!-- Source Link Support (for debugging) -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+</Project>
