@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Interop;
 
@@ -119,14 +120,50 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     /// </summary>
     public Dictionary<uint, DeviceInfo> Devices { get; }
 
+    // Global console output suppressor (singleton pattern)
+    // CRITICAL: Must be a singleton to avoid file descriptor corruption when multiple devices are open
+    private static ConsoleOutputSuppressor? _globalSuppressor;
+    private static readonly Lock SuppressorLock = new();
+
     /// <summary>
-    /// Gets or sets the default console output suppression setting for newly opened devices.
+    /// Gets or sets the global console output suppression setting.
     /// Default is true (console output is suppressed).
-    /// When a device is opened, it inherits this value, but can be changed independently afterward
-    /// via the device's SuppressLibraryConsoleOutput property.
     /// This affects messages like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!".
+    /// IMPORTANT: Uses a global singleton suppressor to prevent file descriptor corruption
+    /// when multiple devices are opened. Changing this value while devices are open is safe.
     /// </summary>
-    public static bool SuppressLibraryConsoleOutput { get; set; } = true;
+    public static bool SuppressLibraryConsoleOutput
+    {
+        get => _globalSuppressor != null;
+        set
+        {
+            lock (SuppressorLock)
+            {
+                switch (value)
+                {
+                    case true when _globalSuppressor == null:
+                        // Enable suppression globally
+                        _globalSuppressor = new ConsoleOutputSuppressor();
+                        break;
+                    case false when _globalSuppressor != null:
+                        // Disable suppression globally
+                        _globalSuppressor.Dispose();
+                        _globalSuppressor = null;
+                        break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Static constructor to initialize global console output suppression.
+    /// Suppression is enabled by default (v0.5.0+).
+    /// </summary>
+    static RtlSdrDeviceManager()
+    {
+        // Enable suppression by default
+        SuppressLibraryConsoleOutput = true;
+    }
 
     #endregion
 

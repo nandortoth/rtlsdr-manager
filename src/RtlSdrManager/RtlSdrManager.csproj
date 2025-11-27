@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.5.0</Version>
-        <FileVersion>0.5.0.0</FileVersion>
-        <AssemblyVersion>0.5.0.0</AssemblyVersion>
+        <Version>0.5.1</Version>
+        <FileVersion>0.5.1.0</FileVersion>
+        <AssemblyVersion>0.5.1.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,36 +44,17 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.5.0 (2025-10-25):
+            v0.5.1 (2025-11-27):
 
             BREAKING CHANGES:
-            - Migrated from .NET Core 3.1 to .NET 9.0
-            - Namespace reorganization (Modes/, Hardware/, Interop/)
-            - Project restructured into src/ and samples/ directories
-            - Modernized value types (Frequency, DeviceInfo, CrystalFrequency)
-
-            NEW FEATURES:
-            - Windows support in native library resolver
-            - IComparable support for Frequency type
-            - Improved frequency arithmetic with overflow protection
-            - Source Link support for debugging NuGet packages
-            - Comprehensive .editorconfig with 60+ code quality rules
-            - Performance analyzers (CA1827, CA1829, CA1841, CA1851)
-            - Security analyzers for P/Invoke (CA2101, CA3075, CA5350, CA5351)
-            - Standard exception constructors for all custom exceptions
-            - Input validation with proper exception types
-
-            IMPROVEMENTS:
-            - Replaced DllImport with LibraryImport for better performance
-            - Implemented proper dispose pattern with managed/unmanaged separation
-            - Added comprehensive XML documentation
-            - Cross-platform build support (LF line endings)
-            - Build scripts (build.sh, runsample.sh)
+            - Console output suppression now uses global singleton pattern instead of per-device suppression
+            - RtlSdrDeviceManager.SuppressLibraryConsoleOutput is now a property managing global state
+            - Removed per-device SuppressLibraryConsoleOutput property from RtlSdrManagedDevice
 
             FIXES:
-            - Proper resource disposal in async samples
-            - Clear error messages for invalid device indices
-            - Finalizer no longer accesses disposed managed resources
+            - Fixed file descriptor corruption when multiple RTL-SDR devices are opened simultaneously
+            - Console output suppression now uses a single global ConsoleOutputSuppressor instance
+            - Eliminates crashes and undefined behavior with multiple devices
 
             See CHANGELOG.md for complete details and upgrade guide.
         </PackageReleaseNotes>

@@ -93,39 +93,29 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     #region Helper Methods
 
     /// <summary>
-    /// Executes an action with optional console output suppression.
+    /// Executes an action (console output suppression is handled globally).
     /// </summary>
     /// <param name="action">The action to execute.</param>
     private void ExecuteWithSuppression(Action action)
     {
-        if (_suppressLibraryConsoleOutput)
-        {
-            using var suppressor = new ConsoleOutputSuppressor();
-            action();
-        }
-        else
-        {
-            action();
-        }
+        // Console output suppression is now managed globally by RtlSdrDeviceManager
+        // to prevent file descriptor corruption when multiple devices are open.
+        // No per-device suppressor needed.
+        action();
     }
 
     /// <summary>
-    /// Executes a function with optional console output suppression.
+    /// Executes a function (console output suppression is handled globally).
     /// </summary>
     /// <typeparam name="T">Return type of the function.</typeparam>
     /// <param name="func">The function to execute.</param>
     /// <returns>The result of the function.</returns>
     private T ExecuteWithSuppression<T>(Func<T> func)
     {
-        if (_suppressLibraryConsoleOutput)
-        {
-            using var suppressor = new ConsoleOutputSuppressor();
-            return func();
-        }
-        else
-        {
-            return func();
-        }
+        // Console output suppression is now managed globally by RtlSdrDeviceManager
+        // to prevent file descriptor corruption when multiple devices are open.
+        // No per-device suppressor needed.
+        return func();
     }
 
     #endregion
@@ -139,19 +129,16 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     internal RtlSdrManagedDevice(DeviceInfo deviceInfo)
     {
         // Initialize suppression setting from the static default
+        // Note: Console output suppression is now handled globally by RtlSdrDeviceManager
+        // to avoid file descriptor corruption when multiple devices are opened
         _suppressLibraryConsoleOutput = RtlSdrDeviceManager.SuppressLibraryConsoleOutput;
-
-        // Suppress console output from librtlsdr during device initialization if requested
-        using ConsoleOutputSuppressor? suppressor = _suppressLibraryConsoleOutput
-            ? new ConsoleOutputSuppressor()
-            : null;
 
         // Store the index number of the device.
         uint deviceIndex = deviceInfo.Index;
 
         // Open the device and get a safe handle.
         // OpenDevice will throw an exception if the device cannot be opened.
-        // Note: We don't use suppressConsoleOutput parameter here since we're wrapping the entire constructor
+        // Console output suppression is managed globally, not per-device
         _deviceHandle = LibRtlSdr.OpenDevice(deviceIndex, suppressConsoleOutput: false);
 
         // Set the device context.
@@ -769,8 +756,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Return the value.
             return returnValue;
         }
-        set
-        {
+        set =>
             // Set the new value on the device.
             ExecuteWithSuppression(() =>
             {
@@ -791,7 +777,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             });
-        }
     }
 
     /// <summary>
@@ -816,8 +801,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Return the value.
             return (DirectSamplingModes)returnValue;
         }
-        set
-        {
+        set =>
             // Set the new value on the device.
             ExecuteWithSuppression(() =>
             {
@@ -831,7 +815,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             });
-        }
     }
 
     /// <summary>
@@ -856,8 +839,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Return the value.
             return (OffsetTuningModes)returnValue;
         }
-        set
-        {
+        set =>
             // Set the new value on the device.
             ExecuteWithSuppression(() =>
             {
@@ -871,7 +853,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             });
-        }
     }
 
     /// <summary>

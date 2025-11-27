@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-11-27
+
+### Changed
+- **BREAKING**: Console output suppression now uses global singleton pattern instead of per-device suppression
+  - `RtlSdrDeviceManager.SuppressLibraryConsoleOutput` is now a property (not auto-property) that manages global state
+  - Removed per-device `SuppressLibraryConsoleOutput` property from `RtlSdrManagedDevice`
+  - Changes apply immediately to all open devices
+  - Uses `System.Threading.Lock` for thread-safe global suppressor management
+
+### Fixed
+- Fixed file descriptor corruption when multiple RTL-SDR devices are opened simultaneously
+  - Console output suppression now uses a single global `ConsoleOutputSuppressor` instance
+  - Prevents each device from creating its own file descriptor redirections
+  - Eliminates crashes and undefined behavior with multiple devices
+
+### Removed
+- Per-device console output suppression control (replaced with global control)
+
 ## [0.5.0] - 2025-10-23
 
 ### Added
@@ -181,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.5.1** | 2025-11-27 | Fixed multi-device console suppression bug |
 | **0.5.0** | 2025-10-23 | .NET 9.0 migration, modern architecture, Source Link |
 | **0.2.1** | 2020-01-10 | KerberosSDR support, Bias Tee control |
 | **0.2.0** | 2018-06-10 | Singleton pattern, bug fixes |
@@ -279,6 +298,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.5.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.1
 [0.5.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.0
 [0.2.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.2.1
 [0.2.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.2.0

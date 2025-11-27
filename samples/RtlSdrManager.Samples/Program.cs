@@ -28,6 +28,10 @@ public static class Program
     /// </summary>
     public static void Main()
     {
+        // Disable console output suppression for the sample application
+        // so that Console.WriteLine and Console.ReadKey work normally
+        RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
+
         // Check the available devices.
         if (RtlSdrDeviceManager.Instance.CountDevices == 0)
         {
