@@ -87,25 +87,23 @@ Console.WriteLine($"Center Frequency: {device.CenterFrequency.MHz} MHz");
 
 ### Console Output Suppression
 
-By default, the library suppresses all console output from `librtlsdr` (like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!") by redirecting native stdout/stderr file descriptors to `/dev/null` (Unix/macOS) or `NUL` (Windows). You can control this behavior globally or per-device:
+By default, the library suppresses all console output from `librtlsdr` (like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!") by redirecting native stdout/stderr file descriptors to `/dev/null` (Unix/macOS) or `NUL` (Windows). You can control this behavior globally:
 
 ```csharp
-// Global default for new devices (default is true)
+// Disable suppression globally (default is true)
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
 
-// Open a device - it inherits the global setting
+// Open a device - will now show librtlsdr messages
 manager.OpenManagedDevice(0, "my-rtl-sdr");
 var device = manager["my-rtl-sdr"];
+device.SampleRate = Frequency.FromMHz(2);  // Will show librtlsdr output
 
-// Control suppression per-device at runtime
-device.SuppressLibraryConsoleOutput = false;  // Show messages for this device
-device.SampleRate = Frequency.FromMHz(2);      // Will show librtlsdr output
-
-device.SuppressLibraryConsoleOutput = true;   // Hide messages again
-device.SampleRate = Frequency.FromMHz(2.4);    // Silent
+// Re-enable suppression globally
+RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
+device.SampleRate = Frequency.FromMHz(2.4);  // Silent
 ```
 
-**Note:** Each device has its own `SuppressLibraryConsoleOutput` property that is initialized from the global setting when opened, but can be changed independently. The suppression works at the native file descriptor level to catch all output from the native library.
+**Note:** The suppression uses a global singleton pattern (v0.5.1+) to prevent file descriptor corruption when multiple devices are opened simultaneously. Changes to the suppression setting apply immediately to all devices.
 
 ### Synchronous Sample Reading
 
