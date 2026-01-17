@@ -17,7 +17,7 @@ A modern, high-performance .NET library for managing RTL-SDR devices with suppor
 - 💾 **Cross-Platform** - Works on Windows, Linux, and macOS
 - ⚡ **High Performance** - LibraryImport P/Invoke for optimal native interop
 - 🛡️ **Production Ready** - Proper exception handling, disposal patterns, and null safety
-- 🔇 **Console Output Control** - Suppress or capture native library diagnostic messages
+- 🔇 **Console Output Control** - Scoped suppression of native library diagnostic messages
 
 ## 📦 Installation
 
@@ -87,23 +87,26 @@ Console.WriteLine($"Center Frequency: {device.CenterFrequency.MHz} MHz");
 
 ### Console Output Suppression
 
-By default, the library suppresses all console output from `librtlsdr` (like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!") by redirecting native stdout/stderr file descriptors to `/dev/null` (Unix/macOS) or `NUL` (Windows). You can control this behavior globally:
+By default, the library shows diagnostic messages from `librtlsdr` (like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!"). You can suppress these messages globally:
 
 ```csharp
-// Disable suppression globally (default is true)
-RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
-
-// Open a device - will now show librtlsdr messages
-manager.OpenManagedDevice(0, "my-rtl-sdr");
-var device = manager["my-rtl-sdr"];
-device.SampleRate = Frequency.FromMHz(2);  // Will show librtlsdr output
-
-// Re-enable suppression globally
+// Enable suppression globally (default is false - messages shown)
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
-device.SampleRate = Frequency.FromMHz(2.4);  // Silent
+
+// Open a device - suppressed only during operation
+manager.OpenManagedDevice(0, "my-rtl-sdr");  // librtlsdr messages hidden
+var device = manager["my-rtl-sdr"];
+device.SampleRate = Frequency.FromMHz(2.4);  // librtlsdr messages hidden
+
+// Disable suppression - show messages again
+RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
+device.CenterFrequency = Frequency.FromMHz(1090);  // Will show librtlsdr output
 ```
 
-**Note:** The suppression uses a global singleton pattern (v0.5.1+) to prevent file descriptor corruption when multiple devices are opened simultaneously. Changes to the suppression setting apply immediately to all devices.
+**Note:** Suppression uses **scoped suppression** (v0.5.2+) with reference-counted global singleton pattern:
+- Stdout/stderr redirected to `/dev/null` (Unix/macOS) or `NUL` (Windows) only during device operations
+- Console restored between operations, allowing console applications (Spectre.Console, etc.) to work properly
+- Prevents file descriptor corruption when multiple devices are opened simultaneously
 
 ### Synchronous Sample Reading
 
