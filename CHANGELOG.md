@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-01-17
+
+### Fixed
+- Fixed permanent stdout/stderr redirection that broke console applications
+  - Console output suppression now uses **scoped suppression** with reference counting
+  - Suppression only active during device operations (OpenManagedDevice), stdout restored between operations
+  - Allows console applications (Spectre.Console, etc.) to properly initialize and detect terminal capabilities
+  - Preserves file descriptor corruption fix from v0.5.1 (global singleton suppressor with reference counting)
+
+### Changed
+- **BREAKING**: Default behavior changed - librtlsdr diagnostic messages now shown by default
+  - `SuppressLibraryConsoleOutput` defaults to `false` (previously `true`)
+  - Applications can set `RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true` to suppress messages
+- Console output suppression is now configuration-based (boolean flag) instead of immediately creating global suppressor
+- Suppressor lifecycle managed via reference-counted scopes (RAII pattern with `SuppressionScope` helper class)
+
 ## [0.5.1] - 2025-11-27
 
 ### Changed
@@ -199,6 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.5.2** | 2026-01-17 | Fixed permanent stdout redirection, scoped suppression |
 | **0.5.1** | 2025-11-27 | Fixed multi-device console suppression bug |
 | **0.5.0** | 2025-10-23 | .NET 9.0 migration, modern architecture, Source Link |
 | **0.2.1** | 2020-01-10 | KerberosSDR support, Bias Tee control |
@@ -298,6 +315,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.5.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.1
 [0.5.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.0
 [0.2.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.2.1

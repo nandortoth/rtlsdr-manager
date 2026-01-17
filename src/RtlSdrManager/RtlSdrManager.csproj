@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.5.1</Version>
-        <FileVersion>0.5.1.0</FileVersion>
-        <AssemblyVersion>0.5.1.0</AssemblyVersion>
+        <Version>0.5.2</Version>
+        <FileVersion>0.5.2.0</FileVersion>
+        <AssemblyVersion>0.5.2.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,17 +44,18 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.5.1 (2025-11-27):
-
-            BREAKING CHANGES:
-            - Console output suppression now uses global singleton pattern instead of per-device suppression
-            - RtlSdrDeviceManager.SuppressLibraryConsoleOutput is now a property managing global state
-            - Removed per-device SuppressLibraryConsoleOutput property from RtlSdrManagedDevice
+            v0.5.2 (2026-01-17):
 
             FIXES:
-            - Fixed file descriptor corruption when multiple RTL-SDR devices are opened simultaneously
-            - Console output suppression now uses a single global ConsoleOutputSuppressor instance
-            - Eliminates crashes and undefined behavior with multiple devices
+            - Fixed permanent stdout redirection that broke console applications (Spectre.Console, etc.)
+            - Console output suppression now uses scoped suppression with reference counting
+            - Suppression only active during device operations, stdout restored between operations
+            - Default changed to SuppressLibraryConsoleOutput = false (show librtlsdr messages)
+            - Preserves file descriptor corruption fix from v0.5.1 (global singleton with reference counting)
+
+            BREAKING CHANGES:
+            - Default behavior changed: librtlsdr messages now shown by default
+            - Applications can set RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true to suppress
 
             See CHANGELOG.md for complete details and upgrade guide.
         </PackageReleaseNotes>

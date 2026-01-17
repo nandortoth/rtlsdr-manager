@@ -1,16 +1,16 @@
 // RTL-SDR Manager Library for .NET Core
 // Copyright (C) 2018-2025 Nandor Toth <dev@nandortoth.eu>
-//  
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses.
 
@@ -28,9 +28,8 @@ public static class Program
     /// </summary>
     public static void Main()
     {
-        // Disable console output suppression for the sample application
-        // so that Console.WriteLine and Console.ReadKey work normally
-        RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
+        // Enable console output suppression for hiding messages from librtlsdr.
+        RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
 
         // Check the available devices.
         if (RtlSdrDeviceManager.Instance.CountDevices == 0)

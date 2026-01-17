@@ -83,38 +83,33 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// </summary>
     private bool _disposed;
 
-    /// <summary>
-    /// Controls whether console output from librtlsdr should be suppressed for this device.
-    /// </summary>
-    private bool _suppressLibraryConsoleOutput;
-
     #endregion
 
     #region Helper Methods
 
     /// <summary>
-    /// Executes an action (console output suppression is handled globally).
+    /// Executes an action with scoped console output suppression.
+    /// Uses reference-counted global suppressor to prevent file descriptor corruption
+    /// when multiple devices are being configured simultaneously.
     /// </summary>
     /// <param name="action">The action to execute.</param>
     private void ExecuteWithSuppression(Action action)
     {
-        // Console output suppression is now managed globally by RtlSdrDeviceManager
-        // to prevent file descriptor corruption when multiple devices are open.
-        // No per-device suppressor needed.
+        using var scope = new RtlSdrDeviceManager.SuppressionScope();
         action();
     }
 
     /// <summary>
-    /// Executes a function (console output suppression is handled globally).
+    /// Executes a function with scoped console output suppression.
+    /// Uses reference-counted global suppressor to prevent file descriptor corruption
+    /// when multiple devices are being configured simultaneously.
     /// </summary>
     /// <typeparam name="T">Return type of the function.</typeparam>
     /// <param name="func">The function to execute.</param>
     /// <returns>The result of the function.</returns>
     private T ExecuteWithSuppression<T>(Func<T> func)
     {
-        // Console output suppression is now managed globally by RtlSdrDeviceManager
-        // to prevent file descriptor corruption when multiple devices are open.
-        // No per-device suppressor needed.
+        using var scope = new RtlSdrDeviceManager.SuppressionScope();
         return func();
     }
 
@@ -128,10 +123,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <param name="deviceInfo">Fundamental information of the device.</param>
     internal RtlSdrManagedDevice(DeviceInfo deviceInfo)
     {
-        // Initialize suppression setting from the static default
-        // Note: Console output suppression is now handled globally by RtlSdrDeviceManager
-        // to avoid file descriptor corruption when multiple devices are opened
-        _suppressLibraryConsoleOutput = RtlSdrDeviceManager.SuppressLibraryConsoleOutput;
+        // Console output suppression is handled by RtlSdrDeviceManager.OpenManagedDevice()
+        // using scoped suppression with reference counting (v0.5.2+).
+        // This constructor is called within that suppression scope.
 
         // Store the index number of the device.
         uint deviceIndex = deviceInfo.Index;
@@ -189,18 +183,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Fundamental information about the managed device.
     /// </summary>
     public DeviceInfo DeviceInfo { get; }
-
-    /// <summary>
-    /// Gets or sets whether console output from librtlsdr should be suppressed for this device.
-    /// When true, messages like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!" are hidden.
-    /// This setting is initialized from RtlSdrDeviceManager.SuppressLibraryConsoleOutput when the device is opened,
-    /// but can be changed independently per device afterwards.
-    /// </summary>
-    public bool SuppressLibraryConsoleOutput
-    {
-        get => _suppressLibraryConsoleOutput;
-        set => _suppressLibraryConsoleOutput = value;
-    }
 
     /// <summary>
     /// Enablement of KerberosSDR functionalities:
