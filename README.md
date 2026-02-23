@@ -2,24 +2,32 @@
 
 [![NuGet Version](https://img.shields.io/nuget/v/RtlSdrManager.svg)](https://www.nuget.org/packages/RtlSdrManager/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/RtlSdrManager.svg)](https://www.nuget.org/packages/RtlSdrManager/)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE.md)
-[![.NET Version](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/download)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)](https://dotnet.microsoft.com/download)
 
-A modern, high-performance .NET library for managing RTL-SDR devices with support for async operations, multiple tuner types, and advanced features like KerberosSDR.
+**A modern .NET library for managing RTL-SDR devices**
 
-## ✨ Features
+RTL-SDR Manager provides a high-level, type-safe API for controlling RTL2832U-based software-defined radio devices from .NET applications. The library handles device lifecycle, tuner configuration, and sample acquisition with support for synchronous and asynchronous operations, multiple simultaneous devices, and advanced features such as KerberosSDR coherent arrays.
 
-- 🚀 **Async/Await Support** - Non-blocking sample reading with concurrent queue buffering
-- 🎛️ **Multiple Tuner Support** - E4000, R820T/R828D, FC0012, FC0013, FC2580
-- 🔧 **Advanced Configuration** - Gain control, frequency correction, direct sampling, bias tee
-- 📡 **KerberosSDR Ready** - Frequency dithering and GPIO control for coherent SDR arrays
-- 🔒 **Type-Safe API** - Strongly-typed frequency values with unit conversions
-- 💾 **Cross-Platform** - Works on Windows, Linux, and macOS
-- ⚡ **High Performance** - LibraryImport P/Invoke for optimal native interop
-- 🛡️ **Production Ready** - Proper exception handling, disposal patterns, and null safety
-- 🔇 **Console Output Control** - Scoped suppression of native library diagnostic messages
+## Features
 
-## 📦 Installation
+- **Async/Await Support** — Non-blocking sample reading with concurrent queue buffering for real-time signal processing.
+
+- **Multiple Tuner Support** — Works with E4000, R820T/R828D, FC0012, FC0013, and FC2580 tuner chips.
+
+- **Advanced Configuration** — Gain control, frequency correction (PPM), direct sampling for HF reception, and bias tee power control.
+
+- **KerberosSDR Ready** — Frequency dithering and GPIO control for coherent SDR arrays used in direction finding.
+
+- **Type-Safe Frequency API** — Strongly-typed `Frequency` values with factory methods (`FromHz`, `FromKHz`, `FromMHz`, `FromGHz`) and arithmetic operations.
+
+- **Cross-Platform** — Runs on Windows, Linux, and macOS via platform-specific native interop.
+
+- **High Performance** — Uses `LibraryImport` source-generated P/Invoke for optimal native library calls.
+
+- **Production Ready** — Proper exception handling, `IDisposable` patterns, null safety, and scoped console output suppression.
+
+## Installation
 
 ### Via NuGet Package Manager
 
@@ -36,7 +44,7 @@ Install-Package RtlSdrManager
 
 ### Prerequisites
 
-You must have the `librtlsdr` native library installed on your system:
+The `librtlsdr` native library must be installed on the system:
 
 **Windows:**
 ```powershell
@@ -56,7 +64,7 @@ sudo apt-get install librtlsdr-dev
 brew install librtlsdr
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Usage
 
@@ -87,26 +95,25 @@ Console.WriteLine($"Center Frequency: {device.CenterFrequency.MHz} MHz");
 
 ### Console Output Suppression
 
-By default, the library shows diagnostic messages from `librtlsdr` (like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!"). You can suppress these messages globally:
+By default, `librtlsdr` diagnostic messages (such as `"Found Rafael Micro R820T tuner"` and `"[R82XX] PLL not locked!"`) are shown on stdout/stderr. The library provides a global static property to suppress these messages during device operations:
 
 ```csharp
-// Enable suppression globally (default is false - messages shown)
+// Suppress librtlsdr diagnostic output globally
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
 
-// Open a device - suppressed only during operation
-manager.OpenManagedDevice(0, "my-rtl-sdr");  // librtlsdr messages hidden
+// Device operations are now silent
+manager.OpenManagedDevice(0, "my-rtl-sdr");
 var device = manager["my-rtl-sdr"];
-device.SampleRate = Frequency.FromMHz(2.4);  // librtlsdr messages hidden
+device.SampleRate = Frequency.FromMHz(2.4);
 
-// Disable suppression - show messages again
+// Re-enable output
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
-device.CenterFrequency = Frequency.FromMHz(1090);  // Will show librtlsdr output
+device.CenterFrequency = Frequency.FromMHz(1090);  // Shows librtlsdr messages
 ```
 
-**Note:** Suppression uses **scoped suppression** (v0.5.2+) with reference-counted global singleton pattern:
-- Stdout/stderr redirected to `/dev/null` (Unix/macOS) or `NUL` (Windows) only during device operations
-- Console restored between operations, allowing console applications (Spectre.Console, etc.) to work properly
-- Prevents file descriptor corruption when multiple devices are opened simultaneously
+Suppression is scoped to individual device operations using reference-counted file descriptor redirection. Stdout and stderr are redirected to `/dev/null` (Unix/macOS) or `NUL` (Windows) only for the duration of each native call, then restored. This prevents interference with console applications and avoids file descriptor corruption when multiple devices operate concurrently.
+
+For detailed documentation, see [Console Output Suppression](docs/CONSOLE_OUTPUT_SUPPRESSION.md).
 
 ### Synchronous Sample Reading
 
@@ -248,32 +255,33 @@ device.FrequencyDitheringMode = FrequencyDitheringModes.Enabled;
 device.SetGPIO(gpio: 1, GPIOModes.Enabled);
 ```
 
-## 📚 Documentation
+## Documentation
 
-For more detailed information and advanced usage scenarios:
+Detailed guides for specific use cases:
 
-- [**Basic Setup**](docs/BASIC_SETUP.md) - Getting started with device initialization
-- [**Device Management**](docs/DEVICE_MANAGEMENT.md) - Managing multiple RTL-SDR devices
-- [**Manual Gain Control**](docs/MANUAL_GAIN_CONTROL.md) - Configuring tuner gain settings
-- [**Direct Sampling**](docs/DIRECT_SAMPLING.md) - Using direct sampling modes for HF
-- [**Frequency Correction**](docs/FREQUENCY_CORRECTION.md) - PPM frequency correction
-- [**Bias Tee**](docs/BIAS_TEE.md) - Enabling bias tee for powering external LNAs
-- [**KerberosSDR**](docs/KERBEROS_SDR.md) - Advanced features for KerberosSDR arrays
+- [Basic Setup](docs/BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [Device Management](docs/DEVICE_MANAGEMENT.md) — Managing multiple RTL-SDR devices simultaneously
+- [Manual Gain Control](docs/MANUAL_GAIN_CONTROL.md) — Configuring tuner gain settings
+- [Direct Sampling](docs/DIRECT_SAMPLING.md) — Using direct sampling modes for HF reception
+- [Frequency Correction](docs/FREQUENCY_CORRECTION.md) — PPM calibration and frequency correction
+- [Bias Tee](docs/BIAS_TEE.md) — Powering external LNAs via bias tee
+- [KerberosSDR](docs/KERBEROS_SDR.md) — Coherent SDR array features
+- [Console Output Suppression](docs/CONSOLE_OUTPUT_SUPPRESSION.md) — Controlling native library diagnostic output
 
 ### Sample Applications
 
-Check out the [`samples/`](samples/) directory for complete working examples:
+The [`samples/`](samples/) directory contains complete working examples:
 
-- **Demo1** - Event-based async sample reading
-- **Demo2** - Manual polling from async buffer
-- **Demo3** - Synchronous sample reading
-- **Demo4** - Device information and configuration
+- **Demo1** — Event-based async sample reading
+- **Demo2** — Manual polling from async buffer
+- **Demo3** — Synchronous sample reading
+- **Demo4** — Device information and configuration
 
-## 🔧 Building from Source
+## Building from Source
 
 ### Requirements
 
-- .NET 9.0 SDK or later
+- .NET 10.0 SDK or later
 - librtlsdr native library
 
 ### Build Commands
@@ -299,9 +307,10 @@ dotnet pack --configuration Release
 ### Build Output
 
 The build process creates:
-- **NuGet packages** → `artifacts/packages/`
-- **Library binaries** → `artifacts/binaries/RtlSdrManager/`
-- **Sample binaries** → `artifacts/binaries/Samples/`
+
+- **NuGet packages** — `artifacts/packages/`
+- **Library binaries** — `artifacts/binaries/RtlSdrManager/`
+- **Sample binaries** — `artifacts/binaries/Samples/`
 
 ### Running Samples
 
@@ -313,10 +322,10 @@ The build process creates:
 dotnet run --project samples/RtlSdrManager.Samples
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-RtlSdrManager/
+rtlsdr-manager/
 ├── src/
 │   └── RtlSdrManager/           # Main library
 │       ├── Exceptions/          # Custom exception types
@@ -328,57 +337,35 @@ RtlSdrManager/
 └── docs/                        # Documentation
 ```
 
-## 🤝 Contributing
+## System Requirements
 
-Contributions are welcome! Please feel free to submit issues, fork the repository, and create pull requests.
+- **.NET Runtime** — 10.0 or later
+- **Operating System** — Windows, Linux, macOS
+- **Hardware** — RTL-SDR compatible device (RTL2832U-based)
+- **Native Library** — librtlsdr installed on the system
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure your code:
-- Follows the EditorConfig style guidelines
-- Builds without warnings
-- Includes XML documentation for public APIs
-- Includes unit tests for new features (when applicable)
-
-## 📋 System Requirements
-
-- **.NET Runtime:** 9.0 or later
-- **Operating System:** Windows, Linux, macOS
-- **Hardware:** RTL-SDR compatible device (RTL2832U-based)
-- **Native Library:** librtlsdr installed on the system
-
-## 📝 Supported Devices
+## Supported Devices
 
 This library supports RTL-SDR devices with the following tuners:
 
 | Tuner | Frequency Range | Notes |
-|-------|----------------|-------|
-| **Elonics E4000** | 52-1100 MHz, 1250-2200 MHz | No longer manufactured |
-| **Rafael Micro R820T** | 24-1766 MHz | Most common, excellent performance |
-| **Rafael Micro R828D** | 24-1766 MHz | Similar to R820T |
-| **Fitipower FC0012** | 22-948.6 MHz | Basic performance |
-| **Fitipower FC0013** | 22-1100 MHz | Basic performance |
-| **FCI FC2580** | 146-308 MHz, 438-924 MHz | Good performance |
+|---|---|---|
+| Elonics E4000 | 52 -- 1100 MHz, 1250 -- 2200 MHz | No longer manufactured |
+| Rafael Micro R820T | 24 -- 1766 MHz | Most common, excellent performance |
+| Rafael Micro R828D | 24 -- 1766 MHz | Similar to R820T |
+| Fitipower FC0012 | 22 -- 948.6 MHz | Basic performance |
+| Fitipower FC0013 | 22 -- 1100 MHz | Basic performance |
+| FCI FC2580 | 146 -- 308 MHz, 438 -- 924 MHz | Good performance |
 
-## 📜 License
+## Contributing
 
-This project is licensed under the **GNU General Public License v3.0 or later** - see the [LICENSE.md](LICENSE.md) file for details.
+Contributions are welcome. Please read the [Contributing Guide](CONTRIBUTING.md) for development setup, coding standards, and the pull request process. This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
 
-```
-RTL-SDR Manager Library for .NET
-Copyright (C) 2018-2025 Nandor Toth
+## License
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-```
+RTL-SDR Manager Library for .NET is free software, released under the [GNU General Public License v3.0 or later](LICENSE.md).
 
-## 🔗 Links
+## Links
 
 - **NuGet Package:** https://www.nuget.org/packages/RtlSdrManager/
 - **GitHub Repository:** https://github.com/nandortoth/rtlsdr-manager
@@ -386,19 +373,13 @@ the Free Software Foundation, either version 3 of the License, or
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **librtlsdr:** https://github.com/osmocom/rtl-sdr
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- [Osmocom rtl-sdr project](https://osmocom.org/projects/rtl-sdr/wiki) for the excellent native library
-- [KerberosSDR project](https://github.com/rtlsdrblog/rtl-sdr-kerberos) for coherent SDR extensions
-- All contributors and users of this library
+- **[Osmocom rtl-sdr project](https://osmocom.org/projects/rtl-sdr/wiki)** — The native `librtlsdr` library that this project wraps.
+- **[KerberosSDR project](https://github.com/rtlsdrblog/rtl-sdr-kerberos)** — Coherent SDR extensions for direction finding and passive radar.
 
-## 📊 Project Status
+## Contact
 
-- ✅ **Stable** - Production ready
-- ✅ **Actively Maintained** - Regular updates and bug fixes
-- ✅ **.NET 9.0** - Modern .NET with latest features
-- ✅ **Cross-Platform** - Windows, Linux, macOS support
-
----
-
-**Made with ❤️ by [Nandor Toth](https://github.com/nandortoth)**
+- **Author:** Nandor Toth
+- **Email:** dev@nandortoth.com
+- **Issues:** [github.com/nandortoth/rtlsdr-manager/issues](https://github.com/nandortoth/rtlsdr-manager/issues)

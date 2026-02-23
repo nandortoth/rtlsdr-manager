@@ -1,12 +1,15 @@
-# Use Case: Basic Device Setup and Sample Reading
+# Basic Device Setup and Sample Reading
 
 ## Objective
+
 Demonstrate how to initialize an RTL-SDR device, configure basic parameters, and read samples asynchronously.
 
 ## Scenario
+
 A developer wants to start capturing radio signals at a specific frequency (e.g., 1090 MHz for ADS-B aircraft tracking) with automatic gain control.
 
 ## Prerequisites
+
 - RTL-SDR device connected via USB
 - RtlSdrManager library installed
 
@@ -59,12 +62,20 @@ while (true)
 ```
 
 ## Expected Results
-- Device initializes successfully
-- Samples are continuously read from the device
-- Buffer manages data flow automatically
-- AGC adjusts gain levels automatically
+
+- Device initializes successfully.
+- Samples are continuously read from the device.
+- Buffer manages data flow automatically.
+- AGC adjusts gain levels automatically.
 
 ## Notes
-- The `DropSamplesOnFullBuffer` setting prevents buffer overflow by dropping old samples
-- Async reading runs in a background thread
-- Sample rate of 2 MHz provides good coverage for most applications
+
+- The `DropSamplesOnFullBuffer` setting prevents buffer overflow by dropping old samples when the buffer is full.
+- Async reading runs in a background thread.
+- A sample rate of 2 MHz provides good coverage for most applications.
+
+## See Also
+
+- [Device Management](DEVICE_MANAGEMENT.md) — Managing multiple RTL-SDR devices
+- [Manual Gain Control](MANUAL_GAIN_CONTROL.md) — Configuring tuner gain settings
+- [Main README](../README.md) — Library overview and features

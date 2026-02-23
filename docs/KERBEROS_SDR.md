@@ -1,12 +1,15 @@
-# Use Case: KerberosSDR Direction Finding
+# KerberosSDR Direction Finding
 
 ## Objective
+
 Configure RTL-SDR devices in KerberosSDR mode for coherent multichannel reception and direction finding applications.
 
 ## Scenario
-A user has a KerberosSDR (4 coherent RTL-SDR receivers) and wants to perform direction finding or beamforming operations.
+
+A user has a KerberosSDR (4 coherent RTL-SDR receivers) and wants to perform direction finding or beamforming operations using synchronized sample acquisition.
 
 ## Prerequisites
+
 - KerberosSDR hardware (4 synchronized RTL-SDR receivers)
 - Understanding of coherent reception requirements
 - Appropriate antenna array setup
@@ -122,15 +125,24 @@ void ProcessCoherentSamples(IQData[] samples)
 ```
 
 ## Expected Results
-- All 4 channels operate coherently with synchronized sampling
-- Frequency dithering reduces DC offset artifacts
-- GPIO control enables external hardware integration
-- Samples can be phase-compared for direction finding
+
+- All 4 channels operate coherently with synchronized sampling.
+- Frequency dithering reduces DC offset artifacts.
+- GPIO control enables external hardware integration.
+- Samples can be phase-compared for direction finding.
 
 ## Notes
-- KerberosSDR mode ensures clock synchronization between channels
-- All channels must use identical configuration (frequency, sample rate, gain)
-- Frequency dithering slightly varies the center frequency to reduce DC spike
-- GPIO control can be used for antenna switching or bias tee control
-- Sample alignment is critical for direction finding accuracy
-- Consider using manual gain to ensure consistent signal levels across channels
+
+- KerberosSDR mode ensures clock synchronization between channels.
+- All channels must use identical configuration (frequency, sample rate, gain).
+- Frequency dithering slightly varies the center frequency to reduce the DC spike.
+- GPIO control can be used for antenna switching or bias tee control.
+- Sample alignment is critical for direction finding accuracy.
+- Use manual gain to ensure consistent signal levels across all channels.
+
+## See Also
+
+- [Basic Setup](BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [Device Management](DEVICE_MANAGEMENT.md) — Managing multiple RTL-SDR devices
+- [Bias Tee](BIAS_TEE.md) — Powering external LNAs via bias tee
+- [Main README](../README.md) — Library overview and features

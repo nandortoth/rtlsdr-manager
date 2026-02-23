@@ -1,12 +1,15 @@
-# Use Case: Direct Sampling Mode
+# Direct Sampling Mode
 
 ## Objective
+
 Enable direct sampling mode for receiving HF frequencies (below 30 MHz) without an upconverter.
 
 ## Scenario
-A user wants to receive shortwave radio, amateur radio, or other HF signals directly using the RTL-SDR's direct sampling capability.
+
+A user wants to receive shortwave radio, amateur radio, or other HF signals directly using the RTL-SDR's direct sampling capability, bypassing the tuner chip.
 
 ## Prerequisites
+
 - RTL-SDR device with direct sampling support
 - Appropriate antenna for HF frequencies
 - Understanding of I-ADC vs Q-ADC sampling modes
@@ -58,7 +61,7 @@ Console.WriteLine("Direct sampling disabled - using normal tuner");
 manager["hf-receiver"].CenterFrequency = Frequency.FromMHz(145); // 2m band
 ```
 
-## Frequency Coverage
+### Frequency Coverage
 
 ```csharp
 // Direct sampling mode typically covers:
@@ -68,20 +71,28 @@ manager["hf-receiver"].CenterFrequency = Frequency.FromMHz(145); // 2m band
 
 // Example: Receiving AM broadcast band
 manager["hf-receiver"].DirectSamplingMode = DirectSamplingModes.Q_ADC;
-manager["hf-receiver"].CenterFrequency = Frequency.FromkHz(1000); // 1 MHz MW
+manager["hf-receiver"].CenterFrequency = Frequency.FromKHz(1000); // 1 MHz MW
 manager["hf-receiver"].SampleRate = Frequency.FromMHz(2);
 ```
 
 ## Expected Results
-- Device receives HF frequencies without external upconverter
-- Frequency range extends down to DC (0 Hz)
-- Tuner chip is bypassed
-- Sampling uses ADC directly from antenna input
+
+- Device receives HF frequencies without an external upconverter.
+- Frequency range extends down to DC (0 Hz).
+- Tuner chip is bypassed.
+- Sampling uses the ADC directly from the antenna input.
 
 ## Notes
-- Direct sampling bypasses the tuner chip
-- I-ADC and Q-ADC inputs may have different performance characteristics
-- Sample rate and gain settings still apply
-- Not all RTL-SDR devices support direct sampling equally well
-- Hardware modifications may improve HF reception (bias tee removal, better filtering)
-- Antenna design is critical for HF reception quality
+
+- Direct sampling bypasses the tuner chip entirely.
+- I-ADC and Q-ADC inputs may have different performance characteristics depending on the device.
+- Sample rate and gain settings still apply.
+- Not all RTL-SDR devices support direct sampling equally well.
+- Hardware modifications may improve HF reception (bias tee removal, better filtering).
+- Antenna design is critical for HF reception quality.
+
+## See Also
+
+- [Basic Setup](BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [Frequency Correction](FREQUENCY_CORRECTION.md) — PPM calibration and frequency correction
+- [Main README](../README.md) — Library overview and features

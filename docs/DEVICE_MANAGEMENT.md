@@ -1,12 +1,15 @@
-# Use Case: Multi-Device Management
+# Multi-Device Management
 
 ## Objective
+
 Demonstrate how to enumerate, identify, and manage multiple RTL-SDR devices simultaneously.
 
 ## Scenario
-A system has multiple RTL-SDR devices connected and needs to identify, configure, and use them for different purposes.
+
+A system has multiple RTL-SDR devices connected and needs to identify, configure, and use them for different purposes (e.g., one for ADS-B reception and another for FM radio).
 
 ## Prerequisites
+
 - Multiple RTL-SDR devices connected
 - Each device potentially having different characteristics
 
@@ -146,16 +149,22 @@ else
 ```
 
 ## Expected Results
-- All connected devices are discovered
-- Device information is accurately retrieved
-- Multiple devices can be operated simultaneously
-- Each device can have independent configuration
-- Devices can be identified by serial number
+
+- All connected devices are discovered.
+- Device information is accurately retrieved.
+- Multiple devices can be operated simultaneously with independent configurations.
+- Devices can be identified by serial number for persistent identification across reconnects.
 
 ## Notes
-- Device indices are 0-based
-- Friendly names make device management more intuitive
-- DeviceInfo provides manufacturer, product, and serial number
-- Each device operates independently with its own buffer
-- Closing devices properly releases hardware resources
-- Serial numbers can be used for persistent device identification across reconnects
+
+- Device indices are 0-based.
+- Friendly names make device management more intuitive than using numeric indices.
+- `DeviceInfo` provides manufacturer, product, and serial number.
+- Each device operates independently with its own buffer.
+- Closing devices properly releases hardware resources.
+
+## See Also
+
+- [Basic Setup](BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [Manual Gain Control](MANUAL_GAIN_CONTROL.md) — Configuring tuner gain settings
+- [Main README](../README.md) — Library overview and features

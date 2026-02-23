@@ -1,12 +1,15 @@
-# Use Case: Frequency Correction and Crystal Tuning
+# Frequency Correction and Crystal Tuning
 
 ## Objective
+
 Calibrate and correct frequency offset caused by crystal oscillator inaccuracies in RTL-SDR devices.
 
 ## Scenario
-A user notices that received frequencies are slightly off from expected values and needs to calibrate the device's frequency accuracy.
+
+A user notices that received frequencies are slightly off from expected values and needs to calibrate the device's frequency accuracy using a known reference signal.
 
 ## Prerequisites
+
 - RTL-SDR device
 - Known reference signal (FM station, GSM tower, or calibration signal)
 - Method to measure frequency offset (spectrum analyzer, SDR software)
@@ -109,7 +112,7 @@ void VerifyCalibration(string deviceName, params double[] knownFrequencies)
 VerifyCalibration("my-device", 100.0, 145.0, 433.0, 1090.0);
 ```
 
-### Advanced: Temperature Compensation
+### Temperature Compensation
 
 ```csharp
 // Store PPM values at different temperatures
@@ -131,7 +134,7 @@ void ApplyTemperatureCompensation(string deviceName, double currentTemp)
 
     device.FrequencyCorrection = temperaturePPM[closestTemp];
 
-    Console.WriteLine($"Applied PPM correction for {closestTemp}°C: {device.FrequencyCorrection} PPM");
+    Console.WriteLine($"Applied PPM correction for {closestTemp}C: {device.FrequencyCorrection} PPM");
 }
 ```
 
@@ -147,30 +150,34 @@ Console.WriteLine($"RTL2832 Crystal Frequency: {rtlFreq.Hz} Hz");
 var tunerFreq = device.TunerCrystalFrequency;
 Console.WriteLine($"Tuner Crystal Frequency: {tunerFreq.Hz} Hz");
 
-// Note: These are nominal values and don't reflect actual accuracy
+// Note: These are nominal values and do not reflect actual accuracy
 ```
 
 ## Expected Results
-- Received signals appear at correct frequencies
-- Frequency accuracy improves significantly
-- Calibration remains stable over time (temperature dependent)
-- PPM correction applies to all tuned frequencies
+
+- Received signals appear at correct frequencies.
+- Frequency accuracy improves significantly after calibration.
+- Calibration remains stable over time (temperature dependent).
+- PPM correction applies to all tuned frequencies.
 
 ## Calibration Tips
 
-1. **Use Multiple Reference Frequencies**: Calibrate using signals across the spectrum
-2. **Account for Temperature**: PPM offset varies with temperature
-3. **Common PPM Ranges**: Most RTL-SDR devices have -100 to +100 PPM offset
-4. **Stable Reference Signals**:
-   - FM radio stations
-   - GSM base stations
-   - ADS-B signals (1090 MHz)
-   - Amateur radio beacons
+1. **Use multiple reference frequencies** — Calibrate using signals across the spectrum for best results.
+2. **Account for temperature** — PPM offset varies with ambient temperature.
+3. **Common PPM ranges** — Most RTL-SDR devices have -100 to +100 PPM offset.
+4. **Stable reference signals** — FM radio stations, GSM base stations, ADS-B signals (1090 MHz), and amateur radio beacons work well.
 
 ## Notes
-- PPM correction is device-specific and should be saved per device
-- Temperature changes affect crystal frequency
-- Cheap RTL-SDR devices may have larger PPM offsets
-- Calibration improves with device warm-up time
-- Some applications (narrow-band) are more sensitive to frequency errors
-- PPM value is applied as: actual_freq = tuned_freq * (1 + PPM/1,000,000)
+
+- PPM correction is device-specific and should be saved per device.
+- Temperature changes affect crystal frequency.
+- Inexpensive RTL-SDR devices may have larger PPM offsets.
+- Calibration improves with device warm-up time.
+- Narrow-band applications are more sensitive to frequency errors than wideband ones.
+- The PPM value is applied as: `actual_freq = tuned_freq * (1 + PPM / 1,000,000)`.
+
+## See Also
+
+- [Manual Gain Control](MANUAL_GAIN_CONTROL.md) — Configuring tuner gain settings
+- [Direct Sampling](DIRECT_SAMPLING.md) — Using direct sampling modes for HF reception
+- [Main README](../README.md) — Library overview and features

@@ -1,15 +1,18 @@
-# Use Case: Bias Tee Control
+# Bias Tee Control
 
 ## Objective
+
 Enable and control the bias tee to power active antennas or LNAs directly from the RTL-SDR device.
 
 ## Scenario
+
 A user has an active antenna or LNA that requires DC power and wants to supply it through the coaxial cable using the RTL-SDR's bias tee feature.
 
 ## Prerequisites
+
 - RTL-SDR device with bias tee support (RTL-SDR Blog V3, etc.)
 - Active antenna or LNA that accepts bias tee power
-- Understanding of voltage/current requirements
+- Understanding of voltage/current requirements of the connected equipment
 
 ## Implementation
 
@@ -76,7 +79,6 @@ void UseBiasTee(Action receiveAction)
 // Usage
 UseBiasTee(() =>
 {
-    // Your reception code here
     device.StartReadSamplesAsync();
     Thread.Sleep(10000); // Receive for 10 seconds
     device.StopReadSamplesAsync();
@@ -122,26 +124,33 @@ void ConfigureSatelliteReception()
 ```
 
 ## Expected Results
-- Bias tee supplies DC power through the coaxial cable
-- Active antenna or LNA receives power and operates
-- Signal quality improves due to active amplification
-- Gain settings may need adjustment due to LNA gain
+
+- Bias tee supplies DC power through the coaxial cable.
+- Active antenna or LNA receives power and operates.
+- Signal quality improves due to active amplification.
+- Gain settings may need adjustment to account for LNA gain.
 
 ## Safety Warnings
 
-⚠️ **IMPORTANT SAFETY INFORMATION:**
+**Warning:** Incorrect use of the bias tee can damage equipment.
 
-- **NEVER** enable bias tee with passive antennas or unamplified connections
-- **NEVER** enable bias tee when the antenna port is connected to another receiver
-- **ALWAYS** check your equipment specifications before enabling bias tee
-- **ALWAYS** disable bias tee before disconnecting antennas
-- Incorrect use can damage equipment
+- **Never** enable bias tee with passive antennas or unamplified connections.
+- **Never** enable bias tee when the antenna port is connected to another receiver.
+- **Always** check equipment specifications before enabling bias tee.
+- **Always** disable bias tee before disconnecting antennas.
 
 ## Notes
-- Typical bias tee voltage: 4.5V - 5V DC
-- Current capacity varies by device (typically 50-100 mA)
-- Check LNA current requirements before use
-- Some devices may not support bias tee
-- Bias tee affects all frequencies on that receiver
-- Use lower gain settings with powered LNAs to avoid saturation
-- Always disable bias tee when switching to passive antennas
+
+- Typical bias tee voltage: 4.5 V -- 5 V DC.
+- Current capacity varies by device (typically 50 -- 100 mA).
+- Check LNA current requirements before use.
+- Some devices may not support bias tee.
+- Bias tee affects all frequencies on that receiver.
+- Use lower gain settings with powered LNAs to avoid saturation.
+- Always disable bias tee when switching to passive antennas.
+
+## See Also
+
+- [Basic Setup](BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [KerberosSDR](KERBEROS_SDR.md) — Coherent SDR array features
+- [Main README](../README.md) — Library overview and features

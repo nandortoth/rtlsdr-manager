@@ -1,12 +1,15 @@
-# Use Case: Manual Gain Control
+# Manual Gain Control
 
 ## Objective
-Configure RTL-SDR device with manual gain control for optimal signal reception in specific conditions.
+
+Configure an RTL-SDR device with manual gain control for optimal signal reception in specific conditions.
 
 ## Scenario
+
 A user needs precise control over the tuner gain to avoid saturation from strong signals or to maximize weak signal reception.
 
 ## Prerequisites
+
 - RTL-SDR device connected
 - Knowledge of expected signal strength in the target frequency range
 
@@ -69,14 +72,22 @@ foreach (var gain in availableGains)
 ```
 
 ## Expected Results
-- Gain remains fixed at the specified value
-- No automatic adjustments occur
-- Signal quality depends on chosen gain value
-- Different gain values affect signal-to-noise ratio
+
+- Gain remains fixed at the specified value.
+- No automatic adjustments occur.
+- Signal quality depends on the chosen gain value.
+- Different gain values affect the signal-to-noise ratio.
 
 ## Notes
-- Gain values are in tenths of dB (e.g., 296 = 29.6 dB)
-- Too high gain can cause saturation and distortion
-- Too low gain reduces sensitivity to weak signals
-- Optimal gain depends on signal strength and interference levels
-- Use AGC initially to find appropriate manual gain values
+
+- Gain values are in tenths of dB (e.g., 296 = 29.6 dB).
+- Too high a gain can cause saturation and distortion.
+- Too low a gain reduces sensitivity to weak signals.
+- Optimal gain depends on signal strength and interference levels.
+- Use AGC initially to find an appropriate manual gain value for your setup.
+
+## See Also
+
+- [Basic Setup](BASIC_SETUP.md) — Device initialization and first sample acquisition
+- [Frequency Correction](FREQUENCY_CORRECTION.md) — PPM calibration and frequency correction
+- [Main README](../README.md) — Library overview and features

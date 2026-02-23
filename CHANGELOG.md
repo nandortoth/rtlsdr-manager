@@ -217,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 |---------|------------|-------------|
 | **0.5.2** | 2026-01-17 | Fixed permanent stdout redirection, scoped suppression |
 | **0.5.1** | 2025-11-27 | Fixed multi-device console suppression bug |
-| **0.5.0** | 2025-10-23 | .NET 9.0 migration, modern architecture, Source Link |
+| **0.5.0** | 2025-10-23 | .NET migration, modern architecture, Source Link |
 | **0.2.1** | 2020-01-10 | KerberosSDR support, Bias Tee control |
 | **0.2.0** | 2018-06-10 | Singleton pattern, bug fixes |
 | **0.1.3** | 2018-06-09 | First NuGet release |
@@ -279,20 +279,19 @@ device.CenterFrequency = freq;
 var shifted = freq + Frequency.FromKHz(100);
 ```
 
-**New Feature - Console Output Suppression:**
+**Console Output Suppression (updated in v0.5.1 and v0.5.2):**
 
-By default, librtlsdr diagnostic messages are now suppressed. You can control this per-device:
+Since v0.5.2, `librtlsdr` diagnostic messages are shown by default. Suppression is controlled via a single global static property and is scoped to individual device operations:
 
 ```csharp
-// Suppress by default (enabled by default in 0.5.0)
+// Suppress librtlsdr diagnostic messages globally
+RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
+
 manager.OpenManagedDevice(0, "my-device");
 var device = manager["my-device"];
+device.SampleRate = Frequency.FromMHz(2);  // Silent
 
-// Toggle suppression at runtime for specific device
-device.SuppressLibraryConsoleOutput = false;  // Show messages
-device.SampleRate = Frequency.FromMHz(2);      // Will show librtlsdr output
-
-// Or set global default for new devices
+// Re-enable output
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
 ```
 
