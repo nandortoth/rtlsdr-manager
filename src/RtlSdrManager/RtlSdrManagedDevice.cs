@@ -79,6 +79,11 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     private GCHandle _deviceContext;
 
     /// <summary>
+    /// Cached supported tuner gains from librtlsdr (raw int values).
+    /// </summary>
+    private int[]? _supportedTunerGainsCache;
+
+    /// <summary>
     /// Private field to implement IDispose interface.
     /// </summary>
     private bool _disposed;
@@ -565,6 +570,12 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     {
         get
         {
+            // Use cached raw gains if available (gains are hardware-determined and never change).
+            if (_supportedTunerGainsCache != null)
+            {
+                return _supportedTunerGainsCache.Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
+            }
+
             // Get the amount of the supported gains.
             int amountTunerGains = LibRtlSdr.rtlsdr_get_tuner_gains(_deviceHandle!, null!);
 
@@ -588,11 +599,11 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                     $"Error code: {returnCode}, device index: {DeviceInfo.Index}.");
             }
 
-            // Convert int to double (dB).
-            var gains = supportedGains.Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
+            // Cache the raw gains from librtlsdr.
+            _supportedTunerGainsCache = supportedGains;
 
-            // Return the value.
-            return gains;
+            // Convert int to double (dB).
+            return _supportedTunerGainsCache.Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
         }
     }
 

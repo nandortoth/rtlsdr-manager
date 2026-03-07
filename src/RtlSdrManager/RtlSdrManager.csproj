@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.5.2</Version>
-        <FileVersion>0.5.2.0</FileVersion>
-        <AssemblyVersion>0.5.2.0</AssemblyVersion>
+        <Version>0.5.3</Version>
+        <FileVersion>0.5.3.0</FileVersion>
+        <AssemblyVersion>0.5.3.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,20 +44,19 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.5.2 (2026-01-17):
+            v0.5.3 (2026-03-07):
+
+            PERFORMANCE:
+            - Pre-allocated List capacity in synchronous ReadSamples to eliminate dynamic resizing
+            - Batched IQ sample construction in async callback to improve cache locality
+            - Replaced busy-wait spin loop in GetSamplesFromAsyncBuffer with single TryDequeue
+            - Pre-allocated List capacity in GetSamplesFromAsyncBuffer
+            - Cached supported tuner gains from librtlsdr to avoid repeated P/Invoke calls
 
             FIXES:
-            - Fixed permanent stdout redirection that broke console applications (Spectre.Console, etc.)
-            - Console output suppression now uses scoped suppression with reference counting
-            - Suppression only active during device operations, stdout restored between operations
-            - Default changed to SuppressLibraryConsoleOutput = false (show librtlsdr messages)
-            - Preserves file descriptor corruption fix from v0.5.1 (global singleton with reference counting)
+            - Demo4 now opens all available devices instead of only the first one
 
-            BREAKING CHANGES:
-            - Default behavior changed: librtlsdr messages now shown by default
-            - Applications can set RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true to suppress
-
-            See CHANGELOG.md for complete details and upgrade guide.
+            See CHANGELOG.md for complete details.
         </PackageReleaseNotes>
     </PropertyGroup>
 

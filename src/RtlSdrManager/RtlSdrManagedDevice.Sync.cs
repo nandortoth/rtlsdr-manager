@@ -79,7 +79,7 @@ public sealed partial class RtlSdrManagedDevice
         bufferPinned.Free();
 
         // Convert byte array to IqData list.
-        var iqData = new List<IQData>();
+        var iqData = new List<IQData>(requestedSamples);
         for (int i = 0; i < buffer.Length; i += 2)
         {
             iqData.Add(new IQData(buffer[i], buffer[i + 1]));

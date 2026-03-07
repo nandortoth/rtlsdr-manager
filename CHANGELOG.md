@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-03-07
+
+### Performance
+- Pre-allocated `List<IQData>` capacity in synchronous `ReadSamples` to eliminate dynamic resizing
+- Batched IQ sample construction in async callback to improve cache locality and reduce lock contention
+- Replaced busy-wait spin loop in `GetSamplesFromAsyncBuffer` with single `TryDequeue` and early exit
+- Pre-allocated `List<IQData>` capacity in `GetSamplesFromAsyncBuffer`
+- Cached supported tuner gains from librtlsdr to avoid repeated P/Invoke calls on every access
+
+### Fixed
+- Demo4 now opens all available devices instead of only the first one
+
 ## [0.5.2] - 2026-01-17
 
 ### Fixed
@@ -215,6 +227,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.5.3** | 2026-03-07 | Performance optimizations for sample reading pipeline |
 | **0.5.2** | 2026-01-17 | Fixed permanent stdout redirection, scoped suppression |
 | **0.5.1** | 2025-11-27 | Fixed multi-device console suppression bug |
 | **0.5.0** | 2025-10-23 | .NET migration, modern architecture, Source Link |
@@ -314,6 +327,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.5.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.3
 [0.5.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.1
 [0.5.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.0

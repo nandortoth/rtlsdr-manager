@@ -54,32 +54,36 @@ public static class Demo4
         Console.WriteLine($"  Number of device(s) on the system: {manager.CountDevices}\n" +
                           $"  Managed device(s) on the system:   {manager.CountManagedDevices}\n");
 
-        // Open a managed device and set some parameters.
-        try
+        // Open all available devices and set some parameters.
+        foreach (DeviceInfo device in manager.Devices.Values)
         {
-            manager.OpenManagedDevice(0, "my-rtl-sdr");
-        }
-        catch (RtlSdrDeviceException e)
-        {
-            Console.WriteLine(e);
-            return;
-        }
-        catch
-        {
-            Console.WriteLine("Failed to open the RTL-SDR device.");
-            return;
+            string friendlyName = $"rtl-sdr-{device.Index}";
+            try
+            {
+                manager.OpenManagedDevice(device.Index, friendlyName);
+            }
+            catch (RtlSdrDeviceException e)
+            {
+                Console.WriteLine(e);
+                return;
+            }
+            catch
+            {
+                Console.WriteLine($"Failed to open the RTL-SDR device (index: {device.Index}).");
+                return;
+            }
+
+            manager[friendlyName].CenterFrequency = Frequency.FromMHz(1090);
+            manager[friendlyName].SampleRate = Frequency.FromMHz(2);
+            manager[friendlyName].TunerGainMode = TunerGainModes.AGC;
+            manager[friendlyName].FrequencyCorrection = 10;
+            manager[friendlyName].AGCMode = AGCModes.Enabled;
+            manager[friendlyName].TestMode = TestModes.Disabled;
+            manager[friendlyName].ResetDeviceBuffer();
         }
 
-        manager["my-rtl-sdr"].CenterFrequency = Frequency.FromMHz(1090);
-        manager["my-rtl-sdr"].SampleRate = Frequency.FromMHz(2);
-        manager["my-rtl-sdr"].TunerGainMode = TunerGainModes.AGC;
-        manager["my-rtl-sdr"].FrequencyCorrection = 10;
-        manager["my-rtl-sdr"].AGCMode = AGCModes.Enabled;
-        manager["my-rtl-sdr"].TestMode = TestModes.Disabled;
-        manager["my-rtl-sdr"].ResetDeviceBuffer();
-
-        // Quick check about the devices, after opening one.
-        Console.WriteLine("DETAILS - AFTER OPENING ONE");
+        // Quick check about the devices, after opening all.
+        Console.WriteLine("DETAILS - AFTER OPENING ALL");
         Console.WriteLine($"  Number of device(s) on the system: {manager.CountDevices}\n" +
                           $"  Managed device(s) on the system:   {manager.CountManagedDevices}\n");
 

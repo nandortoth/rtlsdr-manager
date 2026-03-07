@@ -121,28 +121,24 @@ public sealed partial class RtlSdrManagedDevice
                 "StartReadSamplesAsync function must be invoked first.");
         }
 
-        // Initialize the local buffer.
-        var iqData = new List<IQData>();
-
         // Check the available samples in the async buffer.
         if (maxCount > _asyncBuffer.Count)
         {
             maxCount = _asyncBuffer.Count;
         }
 
+        // Initialize the local buffer with pre-allocated capacity.
+        var iqData = new List<IQData>(maxCount);
+
         // Dequeue of the samples from the async buffer.
         for (int i = 0; i < maxCount; i++)
         {
-            while (true)
+            if (!_asyncBuffer.TryDequeue(out IQData data))
             {
-                if (!_asyncBuffer.TryDequeue(out IQData data))
-                {
-                    continue;
-                }
-
-                iqData.Add(data);
                 break;
             }
+
+            iqData.Add(data);
         }
 
         // Return the local buffer.
@@ -197,11 +193,17 @@ public sealed partial class RtlSdrManagedDevice
             return;
         }
 
-        // Add the samples to the async buffer.
+        // Build all IQData items first (no locking overhead).
+        var samples = new IQData[length];
         for (int i = 0; i < length; i++)
         {
-            var iqData = new IQData(*buf++, *buf++);
-            buffer.Enqueue(iqData);
+            samples[i] = new IQData(*buf++, *buf++);
+        }
+
+        // Enqueue the batch into the concurrent buffer.
+        for (int i = 0; i < length; i++)
+        {
+            buffer.Enqueue(samples[i]);
         }
 
         // Raise the SampleAvailable event.
