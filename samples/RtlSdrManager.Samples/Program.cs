@@ -64,10 +64,13 @@ public static class Program
             Console.WriteLine(" [4] DEMO 4");
             Console.WriteLine("     Show RTL-SDR device(s) on the system.");
             Console.WriteLine("     Show the detailed parameters of the opened device(s).");
+            Console.WriteLine(" [5] DEMO 5");
+            Console.WriteLine("     Samples will be read asynchronously using raw buffer mode.");
+            Console.WriteLine("     Zero-copy access to raw I/Q bytes with pooled buffers.");
             Console.WriteLine("-------------------------------------------------------");
 
             // Display the possibilities.
-            Console.Write("Please select [1, 2, 3, 4 or ESC to quit]: ");
+            Console.Write("Please select [1, 2, 3, 4, 5 or ESC to quit]: ");
 
             // Read from the console.
             selectedDemo = Console.ReadKey().Key;
@@ -76,6 +79,7 @@ public static class Program
                  selectedDemo != ConsoleKey.D2 &&
                  selectedDemo != ConsoleKey.D3 &&
                  selectedDemo != ConsoleKey.D4 &&
+                 selectedDemo != ConsoleKey.D5 &&
                  selectedDemo != ConsoleKey.Escape);
 
         // Run the appropriate demo.
@@ -92,6 +96,9 @@ public static class Program
                 break;
             case ConsoleKey.D4:
                 Demo4.Run();
+                break;
+            case ConsoleKey.D5:
+                Demo5.Run();
                 break;
             case ConsoleKey.Escape:
                 break;

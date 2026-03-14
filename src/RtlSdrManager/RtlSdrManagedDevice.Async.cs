@@ -15,10 +15,12 @@
 // along with this program.  If not, see http://www.gnu.org/licenses.
 
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Interop;
 
@@ -39,9 +41,19 @@ public sealed partial class RtlSdrManagedDevice
         SamplesAvailableCallback;
 
     /// <summary>
-    /// Async I/Q buffer (FIFO).
+    /// Async I/Q buffer (FIFO). Used when <see cref="UseRawBufferMode"/> is false.
     /// </summary>
     private ConcurrentQueue<IQData>? _asyncBuffer;
+
+    /// <summary>
+    /// Raw async channel for zero-copy buffer handoff. Used when <see cref="UseRawBufferMode"/> is true.
+    /// </summary>
+    private Channel<RawSampleBuffer>? _rawAsyncChannel;
+
+    /// <summary>
+    /// Maximum number of buffers in the raw async channel.
+    /// </summary>
+    private int _rawChannelCapacity;
 
     /// <summary>
     /// Worker thread for async reader.
@@ -86,6 +98,7 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Define the behavior if the buffer is full.
     /// Drop samples (true), or throw exception (false).
+    /// Applies to both IQData mode and raw buffer mode.
     /// </summary>
     public bool DropSamplesOnFullBuffer { get; set; }
 
@@ -94,6 +107,14 @@ public sealed partial class RtlSdrManagedDevice
     /// It is possible to reset the counter with <see cref="ResetDroppedSamplesCounter"/>.
     /// </summary>
     public uint DroppedSamplesCount { get; private set; }
+
+    /// <summary>
+    /// When true, the device uses raw buffer mode: samples are delivered as raw byte[]
+    /// buffers via <see cref="Channel{T}"/> instead of per-sample <see cref="IQData"/> objects
+    /// via <see cref="ConcurrentQueue{T}"/>.
+    /// Must be set before calling <see cref="StartReadSamplesAsync"/>. Default: false.
+    /// </summary>
+    public bool UseRawBufferMode { get; set; }
 
     #endregion
 
@@ -146,6 +167,27 @@ public sealed partial class RtlSdrManagedDevice
     }
 
     /// <summary>
+    /// Get raw I/Q sample buffer from the async channel.
+    /// Returns the next available buffer, or null if no buffer is ready.
+    /// The caller MUST call <see cref="RawSampleBuffer.Return"/> after processing.
+    /// </summary>
+    /// <returns>Raw sample buffer, or null if none available.</returns>
+    /// <exception cref="RtlSdrLibraryExecutionException">
+    /// Thrown when raw buffer mode is not active or <see cref="StartReadSamplesAsync"/> has not been called.
+    /// </exception>
+    public RawSampleBuffer? GetRawSamplesFromAsyncBuffer()
+    {
+        if (_rawAsyncChannel == null)
+        {
+            throw new RtlSdrLibraryExecutionException(
+                "The raw async channel is not initialized yet. " +
+                "Set UseRawBufferMode = true and call StartReadSamplesAsync first.");
+        }
+
+        return _rawAsyncChannel.Reader.TryRead(out RawSampleBuffer? buffer) ? buffer : null;
+    }
+
+    /// <summary>
     /// Callback function for async reading (I/Q).
     /// </summary>
     /// <param name="buf">Buffer to store samples.</param>
@@ -169,45 +211,92 @@ public sealed partial class RtlSdrManagedDevice
             return;
         }
 
-        // Count of I/Q data.
-        int length = (int)len / 2;
-
-        // The buffer is guaranteed to be non-null when the callback is active
-        ConcurrentQueue<IQData>? buffer = target._asyncBuffer!;
-
-        // Check the async buffer usage.
-        if (buffer.Count + length >= target.MaxAsyncBufferSize)
+        if (target.UseRawBufferMode)
         {
-            // Throw an exception, if dropping samples was not asked.
-            if (!target.DropSamplesOnFullBuffer)
+            // Raw buffer mode: rent from pool, memcpy, hand off via Channel.
+            Channel<RawSampleBuffer> channel = target._rawAsyncChannel!;
+            int byteLength = (int)len;
+
+            // Check backpressure: if channel is full, either drop or throw
+            // (consistent with legacy IQData mode behavior).
+            if (channel.Reader.Count >= target._rawChannelCapacity)
             {
-                throw new RtlSdrManagedDeviceException(
-                    "The async buffer of the managed device is full. " +
-                    $"Current buffer size: {buffer.Count + length} I/Q samples, " +
-                    $"Maximum buffer size: {target.MaxAsyncBufferSize} I/Q samples, " +
-                    $"Device index: {target.DeviceInfo.Index}.");
+                if (!target.DropSamplesOnFullBuffer)
+                {
+                    throw new RtlSdrManagedDeviceException(
+                        "The raw async channel of the managed device is full. " +
+                        $"Current channel usage: {channel.Reader.Count} buffers, " +
+                        $"Maximum capacity: {target._rawChannelCapacity} buffers, " +
+                        $"Device index: {target.DeviceInfo.Index}.");
+                }
+
+                target.DroppedSamplesCount += (uint)(byteLength / 2);
+                return;
             }
 
-            // Drop samples, since the async buffer is full, but increase the counter.
-            target.DroppedSamplesCount += (uint)length;
-            return;
-        }
+            // Rent a buffer from the shared pool (zero-allocation on steady state).
+            byte[] pooledBuffer = ArrayPool<byte>.Shared.Rent(byteLength);
 
-        // Build all IQData items first (no locking overhead).
-        var samples = new IQData[length];
-        for (int i = 0; i < length; i++)
+            // Single memcpy from native buffer to managed array.
+            new ReadOnlySpan<byte>(buf, byteLength).CopyTo(pooledBuffer);
+
+            // Hand off to consumer via bounded Channel.
+            var rawBuffer = new RawSampleBuffer(pooledBuffer, byteLength);
+            if (!channel.Writer.TryWrite(rawBuffer))
+            {
+                // Channel full (race with pre-check above) — return buffer and count as dropped.
+                ArrayPool<byte>.Shared.Return(pooledBuffer);
+                target.DroppedSamplesCount += (uint)(byteLength / 2);
+                return;
+            }
+
+            // Raise the SampleAvailable event.
+            target.OnSamplesAvailable(new SamplesAvailableEventArgs(byteLength / 2));
+        }
+        else
         {
-            samples[i] = new IQData(*buf++, *buf++);
-        }
+            // Legacy IQData mode: existing implementation.
 
-        // Enqueue the batch into the concurrent buffer.
-        for (int i = 0; i < length; i++)
-        {
-            buffer.Enqueue(samples[i]);
-        }
+            // Count of I/Q data.
+            int length = (int)len / 2;
 
-        // Raise the SampleAvailable event.
-        target.OnSamplesAvailable(new SamplesAvailableEventArgs(length));
+            // The buffer is guaranteed to be non-null when the callback is active.
+            ConcurrentQueue<IQData>? buffer = target._asyncBuffer!;
+
+            // Check the async buffer usage.
+            if (buffer.Count + length >= target.MaxAsyncBufferSize)
+            {
+                // Throw an exception, if dropping samples was not asked.
+                if (!target.DropSamplesOnFullBuffer)
+                {
+                    throw new RtlSdrManagedDeviceException(
+                        "The async buffer of the managed device is full. " +
+                        $"Current buffer size: {buffer.Count + length} I/Q samples, " +
+                        $"Maximum buffer size: {target.MaxAsyncBufferSize} I/Q samples, " +
+                        $"Device index: {target.DeviceInfo.Index}.");
+                }
+
+                // Drop samples, since the async buffer is full, but increase the counter.
+                target.DroppedSamplesCount += (uint)length;
+                return;
+            }
+
+            // Build all IQData items first (no locking overhead).
+            var samples = new IQData[length];
+            for (int i = 0; i < length; i++)
+            {
+                samples[i] = new IQData(*buf++, *buf++);
+            }
+
+            // Enqueue the batch into the concurrent buffer.
+            for (int i = 0; i < length; i++)
+            {
+                buffer.Enqueue(samples[i]);
+            }
+
+            // Raise the SampleAvailable event.
+            target.OnSamplesAvailable(new SamplesAvailableEventArgs(length));
+        }
     }
 
     /// <summary>
@@ -238,8 +327,26 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
     {
-        // If the buffer does not exist, must be initialized.
-        _asyncBuffer ??= new ConcurrentQueue<IQData>();
+        // Initialize the appropriate buffer based on mode.
+        if (UseRawBufferMode)
+        {
+            // Calculate channel capacity from MaxAsyncBufferSize.
+            // Each buffer holds requestedSamples, so capacity = MaxAsyncBufferSize / requestedSamples.
+            int capacity = Math.Max(8, (int)(MaxAsyncBufferSize / requestedSamples));
+            _rawChannelCapacity = capacity;
+            _rawAsyncChannel ??= Channel.CreateBounded<RawSampleBuffer>(
+                new BoundedChannelOptions(capacity)
+                {
+                    SingleWriter = true,    // Only the native callback writes
+                    SingleReader = true,    // Only OnSamplesAvailable reads
+                    FullMode = BoundedChannelFullMode.DropWrite
+                });
+        }
+        else
+        {
+            // If the buffer does not exist, must be initialized.
+            _asyncBuffer ??= new ConcurrentQueue<IQData>();
+        }
 
         // Check the worker thread.
         if (_asyncWorker != null)
@@ -249,7 +356,7 @@ public sealed partial class RtlSdrManagedDevice
                 $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
         }
 
-        // Start the worker with normal priority.
+        // Start the worker with highest priority.
         _asyncWorker = new Thread(SamplesAsyncReader)
         {
             Priority = ThreadPriority.Highest
@@ -288,8 +395,19 @@ public sealed partial class RtlSdrManagedDevice
         // Release the worker.
         _asyncWorker = null;
 
-        // Empty the buffer.
+        // Empty the IQData buffer.
         _asyncBuffer = null;
+
+        // Drain and clean up the raw async channel.
+        if (_rawAsyncChannel != null)
+        {
+            _rawAsyncChannel.Writer.TryComplete();
+            while (_rawAsyncChannel.Reader.TryRead(out RawSampleBuffer? remaining))
+            {
+                remaining.Return();
+            }
+            _rawAsyncChannel = null;
+        }
     }
 
     #endregion

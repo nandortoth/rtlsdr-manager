@@ -39,7 +39,7 @@ dotnet add package RtlSdrManager
 Install-Package RtlSdrManager
 
 # PackageReference (in .csproj)
-<PackageReference Include="RtlSdrManager" Version="0.5.3" />
+<PackageReference Include="RtlSdrManager" Version="0.6.0" />
 ```
 
 ### Prerequisites
@@ -166,6 +166,46 @@ device.StopReadSamplesAsync();
 manager.CloseManagedDevice("my-rtl-sdr");
 ```
 
+### Raw Buffer Mode (Zero-Copy)
+
+For high-throughput applications, raw buffer mode eliminates per-sample object allocation by
+delivering raw byte buffers directly from the native callback via `ArrayPool<byte>`:
+
+```csharp
+// Enable raw buffer mode before starting async reading
+device.UseRawBufferMode = true;
+device.MaxAsyncBufferSize = 512 * 1024;
+device.DropSamplesOnFullBuffer = true;
+
+device.StartReadSamplesAsync(requestedSamples: 131072);
+
+device.SamplesAvailable += (sender, args) =>
+{
+    var buffer = device.GetRawSamplesFromAsyncBuffer();
+    if (buffer == null) return;
+
+    try
+    {
+        // Access raw interleaved I/Q bytes: [I0, Q0, I1, Q1, ...]
+        ReadOnlySpan<byte> raw = buffer.Data.AsSpan(0, buffer.ByteLength);
+
+        for (int i = 0; i < buffer.ByteLength; i += 2)
+        {
+            byte iSample = raw[i];
+            byte qSample = raw[i + 1];
+            // Process sample pair...
+        }
+    }
+    finally
+    {
+        buffer.Return(); // Return pooled buffer — must be called exactly once
+    }
+};
+
+// Stop reading when done
+device.StopReadSamplesAsync();
+```
+
 ### Manual Gain Control
 
 ```csharp
@@ -276,6 +316,7 @@ The [`samples/`](samples/) directory contains complete working examples:
 - **Demo2** — Manual polling from async buffer
 - **Demo3** — Synchronous sample reading
 - **Demo4** — Device information and configuration
+- **Demo5** — Raw buffer mode for zero-copy sample processing
 
 ## Building from Source
 

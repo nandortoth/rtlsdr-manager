@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.5.3</Version>
-        <FileVersion>0.5.3.0</FileVersion>
-        <AssemblyVersion>0.5.3.0</AssemblyVersion>
+        <Version>0.6.0</Version>
+        <FileVersion>0.6.0.0</FileVersion>
+        <AssemblyVersion>0.6.0.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,17 +44,20 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.5.3 (2026-03-07):
+            v0.6.0 (2026-03-14):
+
+            ADDED:
+            - Raw buffer mode for zero-copy sample delivery via Channel&lt;RawSampleBuffer&gt;
+            - RawSampleBuffer type wrapping pooled byte[] buffers from ArrayPool&lt;byte&gt;
+            - UseRawBufferMode property to opt-in to raw buffer mode (default: false)
+            - GetRawSamplesFromAsyncBuffer() method returning RawSampleBuffer?
+            - Demo5: Raw buffer mode sample application
 
             PERFORMANCE:
-            - Pre-allocated List capacity in synchronous ReadSamples to eliminate dynamic resizing
-            - Batched IQ sample construction in async callback to improve cache locality
-            - Replaced busy-wait spin loop in GetSamplesFromAsyncBuffer with single TryDequeue
-            - Pre-allocated List capacity in GetSamplesFromAsyncBuffer
-            - Cached supported tuner gains from librtlsdr to avoid repeated P/Invoke calls
-
-            FIXES:
-            - Demo4 now opens all available devices instead of only the first one
+            - Raw buffer mode eliminates per-sample IQData object allocation in async callback
+            - Single memcpy per callback replaces per-sample struct construction and queue operations
+            - ArrayPool&lt;byte&gt; reuse eliminates steady-state heap allocation in native callback path
+            - Channel&lt;RawSampleBuffer&gt; with SingleWriter/SingleReader for lock-free buffer handoff
 
             See CHANGELOG.md for complete details.
         </PackageReleaseNotes>

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-14
+
+### Added
+- **Raw buffer mode** for zero-copy sample delivery via `Channel<RawSampleBuffer>`
+  - New `RawSampleBuffer` type wrapping pooled `byte[]` buffers from `ArrayPool<byte>`
+  - New `UseRawBufferMode` property to opt-in to raw buffer mode (default: `false`)
+  - New `GetRawSamplesFromAsyncBuffer()` method returning `RawSampleBuffer?`
+  - Bounded `Channel` with configurable capacity derived from `MaxAsyncBufferSize`
+  - Backpressure-aware: respects `DropSamplesOnFullBuffer` when channel is full
+- Demo5: Raw buffer mode sample application
+
+### Performance
+- Raw buffer mode eliminates per-sample `IQData` object allocation in async callback (~144M allocations per 30s at 2.4 MSPS with 2 devices)
+- Single `memcpy` per callback replaces per-sample struct construction and queue operations
+- `ArrayPool<byte>` reuse eliminates steady-state heap allocation in the native callback path
+- `Channel<RawSampleBuffer>` with `SingleWriter`/`SingleReader` for lock-free buffer handoff
+
 ## [0.5.3] - 2026-03-07
 
 ### Performance
@@ -227,6 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.6.0** | 2026-03-14 | Raw buffer mode for zero-copy sample delivery |
 | **0.5.3** | 2026-03-07 | Performance optimizations for sample reading pipeline |
 | **0.5.2** | 2026-01-17 | Fixed permanent stdout redirection, scoped suppression |
 | **0.5.1** | 2025-11-27 | Fixed multi-device console suppression bug |
@@ -241,6 +259,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Upgrade Notes
+
+### Upgrading to 0.6.0 from 0.5.x
+
+**No breaking changes.** The new raw buffer mode is opt-in.
+
+To use raw buffer mode for high-throughput applications:
+
+```csharp
+device.UseRawBufferMode = true;
+device.MaxAsyncBufferSize = 512 * 1024;
+device.DropSamplesOnFullBuffer = true;
+device.StartReadSamplesAsync(requestedSamples: 131072);
+
+device.SamplesAvailable += (sender, args) =>
+{
+    var buffer = device.GetRawSamplesFromAsyncBuffer();
+    if (buffer == null) return;
+
+    try
+    {
+        ReadOnlySpan<byte> raw = buffer.Data.AsSpan(0, buffer.ByteLength);
+        // Process interleaved I/Q bytes directly: [I0, Q0, I1, Q1, ...]
+        for (int i = 0; i < buffer.ByteLength; i += 2)
+        {
+            byte iSample = raw[i];
+            byte qSample = raw[i + 1];
+            // ...
+        }
+    }
+    finally
+    {
+        buffer.Return(); // Return pooled buffer — must be called exactly once
+    }
+};
+```
+
+The existing `IQData`-based API (`GetSamplesFromAsyncBuffer`, `AsyncBuffer`, `ReadSamples`)
+continues to work unchanged when `UseRawBufferMode` is `false` (the default).
 
 ### Upgrading to 0.5.0 from 0.2.x
 
@@ -327,6 +383,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.6.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.0
 [0.5.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.3
 [0.5.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.1
