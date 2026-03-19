@@ -107,9 +107,9 @@ internal static class LibResolver
     {
         string[] macPaths =
         [
-            "/opt/homebrew/lib/librtlsdr.dylib", // Apple Silicon
+            "/opt/homebrew/lib/librtlsdr.dylib",   // Apple Silicon
             "/opt/homebrew/lib/librtlsdr.0.dylib",
-            "/usr/local/lib/librtlsdr.dylib", // Intel Mac
+            "/usr/local/lib/librtlsdr.dylib",      // Intel Mac
             "/usr/local/lib/librtlsdr.0.dylib"
         ];
 
@@ -130,9 +130,21 @@ internal static class LibResolver
         string[] linuxPaths =
         [
             "/usr/lib/librtlsdr.so",
-            "/usr/lib/x86_64-linux-gnu/librtlsdr.so",
-            "/usr/lib/aarch64-linux-gnu/librtlsdr.so",
-            "/usr/local/lib/librtlsdr.so"
+            "/usr/lib/librtlsdr.so.0",
+            "/usr/local/lib/librtlsdr.so",
+            "/usr/local/lib/librtlsdr.so.0",
+            "/usr/lib64/librtlsdr.so",                       // RedHat/Fedora x86_64
+            "/usr/lib64/librtlsdr.so.0",
+            "/usr/lib/x86_64-linux-gnu/librtlsdr.so",        // Debian/Ubuntu x86_64
+            "/usr/lib/x86_64-linux-gnu/librtlsdr.so.0",
+            "/usr/lib/aarch64-linux-gnu/librtlsdr.so",       // Debian/Ubuntu aarch64
+            "/usr/lib/aarch64-linux-gnu/librtlsdr.so.0",
+            "/usr/lib/arm-linux-gnueabihf/librtlsdr.so",     // Debian/Ubuntu armhf (RPi 32-bit)
+            "/usr/lib/arm-linux-gnueabihf/librtlsdr.so.0",
+            "/lib/librtlsdr.so",                             // Alpine/minimal distros
+            "/lib/librtlsdr.so.0",
+            "/usr/local/lib64/librtlsdr.so",                 // RedHat/Fedora/SUSE local
+            "/usr/local/lib64/librtlsdr.so.0"
         ];
 
         foreach (string path in linuxPaths)

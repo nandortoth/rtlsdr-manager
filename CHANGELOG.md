@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-03-19
+
+### Added
+- Native library fallback paths for additional Linux distributions
+  - RedHat/Fedora/SUSE (`/usr/lib64`, `/usr/local/lib64`)
+  - Debian/Ubuntu armhf for 32-bit Raspberry Pi (`/usr/lib/arm-linux-gnueabihf`)
+  - Alpine/minimal distros (`/lib`)
+  - Versioned `.so.0` variants for all paths (runtime-only package support without `-dev`)
+
 ## [0.6.0] - 2026-03-14
 
 ### Added
@@ -244,6 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.6.1** | 2026-03-19 | Native library paths for additional Linux distributions |
 | **0.6.0** | 2026-03-14 | Raw buffer mode for zero-copy sample delivery |
 | **0.5.3** | 2026-03-07 | Performance optimizations for sample reading pipeline |
 | **0.5.2** | 2026-01-17 | Fixed permanent stdout redirection, scoped suppression |
@@ -383,6 +393,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.6.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.0
 [0.5.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.3
 [0.5.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.2
