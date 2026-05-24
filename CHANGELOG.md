@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-05-24
+
+### Changed
+- Multi-target `net9.0` and `net10.0` (was `net10.0` only), so the NuGet package can be consumed from both .NET 9 and .NET 10 projects
+
 ## [0.6.1] - 2026-03-19
 
 ### Added
@@ -253,6 +258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.6.2** | 2026-05-24 | Multi-target net9.0 and net10.0 for broader consumer compatibility |
 | **0.6.1** | 2026-03-19 | Native library paths for additional Linux distributions |
 | **0.6.0** | 2026-03-14 | Raw buffer mode for zero-copy sample delivery |
 | **0.5.3** | 2026-03-07 | Performance optimizations for sample reading pipeline |
@@ -393,6 +399,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.6.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.2
 [0.6.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.0
 [0.5.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.5.3

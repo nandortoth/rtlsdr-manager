@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.6.1</Version>
-        <FileVersion>0.6.1.0</FileVersion>
-        <AssemblyVersion>0.6.1.0</AssemblyVersion>
+        <Version>0.6.2</Version>
+        <FileVersion>0.6.2.0</FileVersion>
+        <AssemblyVersion>0.6.2.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,11 +44,10 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.6.1 (2026-03-19):
+            v0.6.2 (2026-05-24):
 
-            ADDED:
-            - Native library fallback paths for additional Linux distributions
-              (RedHat/Fedora/SUSE, Debian/Ubuntu armhf, Alpine, versioned .so.0 variants)
+            CHANGED:
+            - Multi-target net9.0 and net10.0 (was net10.0 only)
 
             See CHANGELOG.md for complete details.
         </PackageReleaseNotes>

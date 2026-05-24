@@ -82,6 +82,7 @@ echo "Publishing RtlSdrManager library binaries..."
 LIBRARY_OUTPUT_DIR="$BINARIES_DIR/RtlSdrManager"
 dotnet publish "$PROJECT_ROOT/src/RtlSdrManager/RtlSdrManager.csproj" \
     --configuration "$CONFIGURATION" \
+    --framework net10.0 \
     --output "$LIBRARY_OUTPUT_DIR" \
     --no-build \
     > /dev/null 2>&1
