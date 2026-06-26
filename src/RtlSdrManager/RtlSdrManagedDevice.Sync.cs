@@ -15,8 +15,8 @@
 // along with this program.  If not, see http://www.gnu.org/licenses.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Interop;
 
@@ -36,57 +36,84 @@ public sealed partial class RtlSdrManagedDevice
     /// <param name="requestedSamples">Amount of requested samples.</param>
     /// <returns>I/Q data from the device as an IqData list.</returns>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-    public List<IQData> ReadSamples(int requestedSamples)
+    public unsafe List<IQData> ReadSamples(int requestedSamples)
     {
+        // Validate input before allocating. Negative is invalid; an oversized count would
+        // overflow the byte count; zero returns no samples without touching the device.
+        if (requestedSamples < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestedSamples),
+                requestedSamples, "Requested sample count must not be negative.");
+        }
+
+        if (requestedSamples > int.MaxValue / 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestedSamples),
+                requestedSamples, "Requested sample count is too large; the byte count would overflow.");
+        }
+
+        if (requestedSamples == 0)
+        {
+            return new List<IQData>();
+        }
+
         // I/Q data means 2 bytes.
         int requestedBytes = requestedSamples * 2;
 
-        // Initialize the buffer.
-        byte[] buffer = new byte[requestedBytes];
-        var bufferPinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-        IntPtr bufferPointer = bufferPinned.AddrOfPinnedObject();
-
-        // Read the ubytes from the device.
-        int returnCode = LibRtlSdr.rtlsdr_read_sync(_deviceHandle!,
-            bufferPointer, requestedBytes, out int receivedBytes);
-
-        // Overflow happened.
-        if (returnCode == -8)
+        // Rent a scratch buffer from the shared pool (may be larger than requested).
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(requestedBytes);
+        try
         {
-            throw new RtlSdrLibraryExecutionException(
-                "Problem happened during reading bytes from the device (overflow, device provided more data). " +
-                $"Error code: {returnCode}, requested bytes: {requestedBytes}, device index: {DeviceInfo.Index}.");
-        }
+            // Pin the buffer only for the duration of the native read.
+            int receivedBytes;
+            int returnCode;
+            fixed (byte* bufferPointer = buffer)
+            {
+                returnCode = LibRtlSdr.rtlsdr_read_sync(_deviceHandle!,
+                    (IntPtr)bufferPointer, requestedBytes, out receivedBytes);
+            }
 
-        // Error happened during reading the data.
-        if (returnCode != 0)
+            // Overflow happened.
+            if (returnCode == -8)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during reading bytes from the device (overflow, device provided more data). " +
+                    $"Error code: {returnCode}, requested bytes: {requestedBytes}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Error happened during reading the data.
+            if (returnCode != 0)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during reading bytes from the device. " +
+                    $"Error code: {returnCode}, requested bytes: {requestedBytes}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Amount of the received bytes is different from the requested.
+            if (receivedBytes != requestedBytes)
+            {
+                throw new RtlSdrLibraryExecutionException(
+                    "Problem happened during reading bytes from the device. " +
+                    $"Error code: {returnCode}, requested bytes: {requestedBytes}, " +
+                    $"received bytes: {receivedBytes}, device index: {DeviceInfo.Index}.");
+            }
+
+            // Convert byte array to IqData list. Use receivedBytes as the bound, because
+            // the pooled buffer may be larger than the valid data.
+            var iqData = new List<IQData>(requestedSamples);
+            for (int i = 0; i < receivedBytes; i += 2)
+            {
+                iqData.Add(new IQData(buffer[i], buffer[i + 1]));
+            }
+
+            // Return the IqData list.
+            return iqData;
+        }
+        finally
         {
-            throw new RtlSdrLibraryExecutionException(
-                "Problem happened during reading bytes from the device. " +
-                $"Error code: {returnCode}, requested bytes: {requestedBytes}, device index: {DeviceInfo.Index}.");
+            // Always return the pooled buffer, even on the exception paths above.
+            ArrayPool<byte>.Shared.Return(buffer);
         }
-
-        // Amount of the received bytes is different from the requested.
-        if (receivedBytes != requestedBytes)
-        {
-            throw new RtlSdrLibraryExecutionException(
-                "Problem happened during reading bytes from the device. " +
-                $"Error code: {returnCode}, requested bytes: {requestedBytes}, " +
-                $"received bytes: {receivedBytes}, device index: {DeviceInfo.Index}.");
-        }
-
-        // Release the memory object.
-        bufferPinned.Free();
-
-        // Convert byte array to IqData list.
-        var iqData = new List<IQData>(requestedSamples);
-        for (int i = 0; i < buffer.Length; i += 2)
-        {
-            iqData.Add(new IQData(buffer[i], buffer[i + 1]));
-        }
-
-        // Return the IqData list.
-        return iqData;
     }
 
     #endregion

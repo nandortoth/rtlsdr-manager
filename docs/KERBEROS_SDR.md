@@ -120,7 +120,7 @@ while (true)
 void ProcessCoherentSamples(IQData[] samples)
 {
     // Implement direction finding or beamforming algorithm here
-    Console.WriteLine($"Processing {samples[0].Length} samples from 4 channels");
+    Console.WriteLine($"Processing one sample from {samples.Length} channels");
 }
 ```
 

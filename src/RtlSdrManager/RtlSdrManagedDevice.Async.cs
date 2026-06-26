@@ -250,8 +250,11 @@ public sealed partial class RtlSdrManagedDevice
                 return;
             }
 
-            // Raise the SampleAvailable event.
-            target.OnSamplesAvailable(new SamplesAvailableEventArgs(byteLength / 2));
+            // Raise the SampleAvailable event (skip allocation if no subscribers).
+            if (target.SamplesAvailable != null)
+            {
+                target.OnSamplesAvailable(new SamplesAvailableEventArgs(byteLength / 2));
+            }
         }
         else
         {
@@ -281,21 +284,18 @@ public sealed partial class RtlSdrManagedDevice
                 return;
             }
 
-            // Build all IQData items first (no locking overhead).
-            var samples = new IQData[length];
+            // Construct and enqueue each I/Q sample in a single pass.
+            // Avoids the intermediate IQData[] allocation (GC pressure in the hot path).
             for (int i = 0; i < length; i++)
             {
-                samples[i] = new IQData(*buf++, *buf++);
+                buffer.Enqueue(new IQData(*buf++, *buf++));
             }
 
-            // Enqueue the batch into the concurrent buffer.
-            for (int i = 0; i < length; i++)
+            // Raise the SampleAvailable event (skip allocation if no subscribers).
+            if (target.SamplesAvailable != null)
             {
-                buffer.Enqueue(samples[i]);
+                target.OnSamplesAvailable(new SamplesAvailableEventArgs(length));
             }
-
-            // Raise the SampleAvailable event.
-            target.OnSamplesAvailable(new SamplesAvailableEventArgs(length));
         }
     }
 

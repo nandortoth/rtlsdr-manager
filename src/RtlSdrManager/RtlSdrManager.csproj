@@ -8,9 +8,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.6.2</Version>
-        <FileVersion>0.6.2.0</FileVersion>
-        <AssemblyVersion>0.6.2.0</AssemblyVersion>
+        <Version>0.6.3</Version>
+        <FileVersion>0.6.3.0</FileVersion>
+        <AssemblyVersion>0.6.3.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -44,10 +44,18 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.6.2 (2026-05-24):
+            v0.6.3 (2026-06-26):
+
+            PERFORMANCE:
+            - Async callback (IQData mode): single-pass enqueue, no intermediate IQData[] allocation
+            - Async callback: skip SamplesAvailableEventArgs allocation when there are no subscribers
+            - Synchronous ReadSamples: pooled ArrayPool buffer and fixed pinning instead of GCHandle + new byte[]
+
+            FIXED:
+            - Synchronous ReadSamples no longer leaks its scratch buffer on read-error exception paths
 
             CHANGED:
-            - Multi-target net9.0 and net10.0 (was net10.0 only)
+            - ReadSamples validates requestedSamples (negative/oversized throw ArgumentOutOfRangeException)
 
             See CHANGELOG.md for complete details.
         </PackageReleaseNotes>

@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-06-26
+
+### Changed
+- Synchronous `ReadSamples` now validates its argument: a negative or excessively large
+  `requestedSamples` throws `ArgumentOutOfRangeException` (previously an `OverflowException`
+  surfaced from buffer allocation); a count of zero returns an empty list without
+  performing a device read
+
+### Performance
+- Async callback (IQData mode): eliminated the per-callback intermediate `IQData[]`
+  allocation and collapsed the two-pass build/enqueue into a single direct-enqueue loop,
+  removing sustained GC pressure (~128 KB allocated ~146×/sec at 2.4 MSPS)
+- Async callback: skip `SamplesAvailableEventArgs` allocation and sample-count math when
+  there are no `SamplesAvailable` subscribers
+- Synchronous `ReadSamples`: replaced per-call `GCHandle` pinning + `new byte[]` with a
+  `fixed` block and a pooled `ArrayPool<byte>` scratch buffer
+
+### Fixed
+- Synchronous `ReadSamples` no longer leaks its scratch buffer when a read error is
+  thrown (the pooled buffer is now released via `try/finally`)
+- Documentation: corrected the coherent-sampling snippet in `docs/KERBEROS_SDR.md`,
+  which called a non-existent `.Length` member on an `IQData` value
+
 ## [0.6.2] - 2026-05-24
 
 ### Changed
@@ -258,6 +281,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |
 | **0.6.2** | 2026-05-24 | Multi-target net9.0 and net10.0 for broader consumer compatibility |
 | **0.6.1** | 2026-03-19 | Native library paths for additional Linux distributions |
 | **0.6.0** | 2026-03-14 | Raw buffer mode for zero-copy sample delivery |
@@ -399,6 +423,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.6.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.3
 [0.6.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.2
 [0.6.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.0
