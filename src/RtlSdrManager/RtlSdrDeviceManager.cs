@@ -126,9 +126,9 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     // Console output suppression configuration and implementation
     // CRITICAL: Uses a global singleton suppressor with reference counting to avoid file descriptor
     // corruption when multiple devices are open. Suppression is scoped to operations only.
-    private static bool _shouldSuppressConsoleOutput = false;  // Default: show messages
+    private static bool _shouldSuppressConsoleOutput;  // Default: show messages (false)
     private static ConsoleOutputSuppressor? _globalSuppressor;
-    private static int _suppressionScopeCount = 0;
+    private static int _suppressionScopeCount;
     private static readonly Lock SuppressorLock = new();
 
     /// <summary>
@@ -142,6 +142,20 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     {
         get => _shouldSuppressConsoleOutput;
         set => _shouldSuppressConsoleOutput = value;
+    }
+
+    /// <summary>
+    /// Current suppression scope count. Internal accessor for unit tests.
+    /// </summary>
+    internal static int ActiveSuppressionScopeCount
+    {
+        get
+        {
+            lock (SuppressorLock)
+            {
+                return _suppressionScopeCount;
+            }
+        }
     }
 
     /// <summary>

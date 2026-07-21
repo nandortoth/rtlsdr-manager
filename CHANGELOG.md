@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at runtime (e.g. after plugging in a device)
 - XML documentation file is generated and shipped in the NuGet package, so consumers
   get IntelliSense documentation (including newly documented enum members)
+- Unit test project (`tests/RtlSdrManager.Tests`, xunit) covering the hardware-independent
+  components: `Frequency`/`CrystalFrequency` conversions and arithmetic, `RawSampleBuffer`,
+  `StartReadSamplesAsync` argument validation, and console suppression scope pairing
 
 ### Changed
 - **BREAKING**: target framework is `net10.0` only; the `net9.0` target was dropped
@@ -37,6 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DivideByZeroException` in raw buffer mode)
 
 ### Fixed
+- Async callback no longer throws managed exceptions across the native boundary,
+  which terminated the process (triggered by a full buffer with
+  `DropSamplesOnFullBuffer = false` — the default — or by a throwing
+  `SamplesAvailable` handler); such errors now stop the reading and surface via
+  `StopReadSamplesAsync()` / `LastAsyncException`
+- Device instances no longer hold a strong `GCHandle` self-reference for their whole
+  lifetime; undisposed devices can now be finalized and the USB handle released
+  (the handle now roots the device only while async reading is active)
+- `StopReadSamplesAsync` reliably waits for the worker thread (bounded join) and no
+  longer masks a captured streaming error with a spurious cancel error
+- Toggling `SuppressLibraryConsoleOutput` while an operation is in progress can no
+  longer leave stdout/stderr permanently redirected or corrupt the suppression
+  reference count (the scope now captures the enter decision)
+- `Dispose()` no longer propagates exceptions from stopping async reading
 - `ArgumentOutOfRangeException` thrown by the `CenterFrequency`, `CrystalFrequency`,
   `SampleRate` and `TunerGain` setters now carries a proper `ParamName`, actual value and
   message (previously the message was misused as the parameter name)
@@ -56,20 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Unused `suppressConsoleOutput` parameter of the internal `OpenDevice` helper and the
   unused generic `ExecuteWithSuppression<T>` overload
-- Async callback no longer throws managed exceptions across the native boundary,
-  which terminated the process (triggered by a full buffer with
-  `DropSamplesOnFullBuffer = false` — the default — or by a throwing
-  `SamplesAvailable` handler); such errors now stop the reading and surface via
-  `StopReadSamplesAsync()` / `LastAsyncException`
-- Device instances no longer hold a strong `GCHandle` self-reference for their whole
-  lifetime; undisposed devices can now be finalized and the USB handle released
-  (the handle now roots the device only while async reading is active)
-- `StopReadSamplesAsync` reliably waits for the worker thread (bounded join) and no
-  longer masks a captured streaming error with a spurious cancel error
-- Toggling `SuppressLibraryConsoleOutput` while an operation is in progress can no
-  longer leave stdout/stderr permanently redirected or corrupt the suppression
-  reference count (the scope now captures the enter decision)
-- `Dispose()` no longer propagates exceptions from stopping async reading
 
 ## [0.6.3] - 2026-06-26
 

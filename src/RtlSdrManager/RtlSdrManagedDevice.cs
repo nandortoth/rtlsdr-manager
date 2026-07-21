@@ -642,7 +642,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
 
             // Is the given value supported? Compare in tenths of dB to avoid
             // floating point equality problems.
-            if (!SupportedTunerGains.Any(supportedGain => (int)Math.Round(supportedGain * 10) == gain))
+            if (SupportedTunerGains.All(supportedGain => (int)Math.Round(supportedGain * 10) != gain))
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the tuner gain of the device. " +

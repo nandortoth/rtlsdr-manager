@@ -80,4 +80,9 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
     </ItemGroup>
+
+    <!-- Expose internals to the unit test project -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="RtlSdrManager.Tests" />
+    </ItemGroup>
 </Project>
