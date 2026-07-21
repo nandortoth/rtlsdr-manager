@@ -166,18 +166,14 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
     public List<IQData> GetSamplesFromAsyncBuffer(int maxCount)
     {
-        // Check the buffer. It can be reachable, if there is an async reading.
-        if (_asyncBuffer == null)
-        {
-            throw new InvalidOperationException(
-                "The async buffer is not initialized yet. " +
-                "StartReadSamplesAsync function must be invoked first.");
-        }
+        // The AsyncBuffer property throws InvalidOperationException if the async reading
+        // has not been started yet.
+        ConcurrentQueue<IQData> buffer = AsyncBuffer;
 
         // Check the available samples in the async buffer.
-        if (maxCount > _asyncBuffer.Count)
+        if (maxCount > buffer.Count)
         {
-            maxCount = _asyncBuffer.Count;
+            maxCount = buffer.Count;
         }
 
         // Initialize the local buffer with pre-allocated capacity.
@@ -186,7 +182,7 @@ public sealed partial class RtlSdrManagedDevice
         // Dequeue of the samples from the async buffer.
         for (int i = 0; i < maxCount; i++)
         {
-            if (!_asyncBuffer.TryDequeue(out IQData data))
+            if (!buffer.TryDequeue(out IQData data))
             {
                 break;
             }

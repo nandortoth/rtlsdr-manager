@@ -146,17 +146,9 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
 
     /// <summary>
     /// Current suppression scope count. Internal accessor for unit tests.
+    /// An aligned int read is atomic, so no lock is needed.
     /// </summary>
-    internal static int ActiveSuppressionScopeCount
-    {
-        get
-        {
-            lock (SuppressorLock)
-            {
-                return _suppressionScopeCount;
-            }
-        }
-    }
+    internal static int ActiveSuppressionScopeCount => Volatile.Read(ref _suppressionScopeCount);
 
     /// <summary>
     /// Tries to enter a suppression scope. If configured, creates or reuses the global suppressor.

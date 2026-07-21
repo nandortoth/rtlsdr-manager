@@ -552,45 +552,48 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Get a list of gains supported by the tuner.
     /// </summary>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-    public List<double> SupportedTunerGains
+    public List<double> SupportedTunerGains =>
+        EnsureSupportedTunerGainsRaw().Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
+
+    /// <summary>
+    /// Return the raw supported tuner gains (in tenths of a dB) from librtlsdr, caching them.
+    /// Gains are hardware-determined and never change, so the query happens at most once.
+    /// </summary>
+    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    private int[] EnsureSupportedTunerGainsRaw()
     {
-        get
+        // Use cached raw gains if available.
+        if (_supportedTunerGainsCache != null)
         {
-            // Use cached raw gains if available (gains are hardware-determined and never change).
-            if (_supportedTunerGainsCache != null)
-            {
-                return _supportedTunerGainsCache.Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
-            }
-
-            // Get the amount of the supported gains.
-            int amountTunerGains = LibRtlSdr.rtlsdr_get_tuner_gains(_deviceHandle!, null!);
-
-            // If we got less or equal to 0, there is an error.
-            if (amountTunerGains <= 0)
-            {
-                throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during querying the amount of the supported gains by the device. " +
-                    $"Error code: {amountTunerGains}, device index: {DeviceInfo.Index}.");
-            }
-
-            // Get the supported gains.
-            int[] supportedGains = new int[amountTunerGains];
-            int returnCode = LibRtlSdr.rtlsdr_get_tuner_gains(_deviceHandle!, supportedGains);
-
-            // If we got 0 or less, there is an error.
-            if (returnCode <= 0)
-            {
-                throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during querying the supported gains by the device. " +
-                    $"Error code: {returnCode}, device index: {DeviceInfo.Index}.");
-            }
-
-            // Cache the raw gains from librtlsdr.
-            _supportedTunerGainsCache = supportedGains;
-
-            // Convert int to double (dB).
-            return _supportedTunerGainsCache.Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
+            return _supportedTunerGainsCache;
         }
+
+        // Get the amount of the supported gains.
+        int amountTunerGains = LibRtlSdr.rtlsdr_get_tuner_gains(_deviceHandle!, null!);
+
+        // If we got less or equal to 0, there is an error.
+        if (amountTunerGains <= 0)
+        {
+            throw new RtlSdrLibraryExecutionException(
+                "Problem happened during querying the amount of the supported gains by the device. " +
+                $"Error code: {amountTunerGains}, device index: {DeviceInfo.Index}.");
+        }
+
+        // Get the supported gains.
+        int[] supportedGains = new int[amountTunerGains];
+        int returnCode = LibRtlSdr.rtlsdr_get_tuner_gains(_deviceHandle!, supportedGains);
+
+        // If we got 0 or less, there is an error.
+        if (returnCode <= 0)
+        {
+            throw new RtlSdrLibraryExecutionException(
+                "Problem happened during querying the supported gains by the device. " +
+                $"Error code: {returnCode}, device index: {DeviceInfo.Index}.");
+        }
+
+        // Cache the raw gains from librtlsdr.
+        _supportedTunerGainsCache = supportedGains;
+        return _supportedTunerGainsCache;
     }
 
     /// <summary>
@@ -640,9 +643,20 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // truncation with a plain cast (e.g. 49.6 * 10 would truncate to 495).
             int gain = (int)Math.Round(value * 10);
 
-            // Is the given value supported? Compare in tenths of dB to avoid
-            // floating point equality problems.
-            if (SupportedTunerGains.All(supportedGain => (int)Math.Round(supportedGain * 10) != gain))
+            // Is the given value supported? Compare in integer tenths of dB against the raw
+            // cache (no allocation, no floating point), preserving the zero-filter that
+            // SupportedTunerGains applies.
+            bool supported = false;
+            foreach (int supportedGain in EnsureSupportedTunerGainsRaw())
+            {
+                if (supportedGain != 0 && supportedGain == gain)
+                {
+                    supported = true;
+                    break;
+                }
+            }
+
+            if (!supported)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the tuner gain of the device. " +
