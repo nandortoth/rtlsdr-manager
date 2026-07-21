@@ -1060,27 +1060,45 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             return;
         }
 
+        // Whether the async worker is provably stopped. Stays true unless Stop times out
+        // below, in which case the worker (and native callback) may still be running and
+        // the callback GC handle / device handle must NOT be freed under it.
+        bool workerStopped = true;
+
         if (disposing)
         {
             // Dispose managed resources
             // Stop async reading if it's running. Dispose must not throw: keep the
-            // error observable through LastAsyncException instead.
+            // error observable through AsyncReadException instead.
             try
             {
                 StopReadSamplesAsync();
             }
             catch (Exception ex)
             {
+                // RecordAsyncError keeps the first error, so a genuine async fault
+                // captured earlier is preserved rather than overwritten by this wrapper.
                 RecordAsyncError(ex);
+
+                // Stop leaves the worker reference set only when the bounded join timed
+                // out (the device is wedged and the callback may still fire).
+                workerStopped = _asyncWorker == null;
             }
 
-            // Dispose the safe handle, which automatically calls rtlsdr_close
-            _deviceHandle?.Dispose();
+            // Only dispose the device handle when the worker has provably stopped.
+            // On a Join timeout, deliberately leak it: freeing it under a live native
+            // callback would crash the process.
+            if (workerStopped)
+            {
+                // Dispose the safe handle, which automatically calls rtlsdr_close
+                _deviceHandle?.Dispose();
+            }
         }
 
         // Release unmanaged resources
-        // Release the device context GC handle
-        if (_deviceContext.IsAllocated)
+        // Release the device context GC handle, unless the worker may still be running
+        // (see above): the callback dereferences this handle, so it must outlive it.
+        if (workerStopped && _deviceContext.IsAllocated)
         {
             _deviceContext.Free();
         }

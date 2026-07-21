@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.0] - Unreleased
 
 ### Added
-- `LastAsyncException` property on `RtlSdrManagedDevice` to observe errors captured
-  during asynchronous reading without stopping it
+- `AsyncReadException` property on `RtlSdrManagedDevice` to observe the error that stopped
+  asynchronous reading without stopping it explicitly
 - `RefreshDevices()` on `RtlSdrDeviceManager` for re-enumerating the RTL-SDR devices
   at runtime (e.g. after plugging in a device)
 - XML documentation file is generated and shipped in the NuGet package, so consumers
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which terminated the process (triggered by a full buffer with
   `DropSamplesOnFullBuffer = false` — the default — or by a throwing
   `SamplesAvailable` handler); such errors now stop the reading and surface via
-  `StopReadSamplesAsync()` / `LastAsyncException`
+  `StopReadSamplesAsync()` / `AsyncReadException`
 - Device instances no longer hold a strong `GCHandle` self-reference for their whole
   lifetime; undisposed devices can now be finalized and the USB handle released
   (the handle now roots the device only while async reading is active)
@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SampleRate` and `TunerGain` setters now carries a proper `ParamName`, actual value and
   message (previously the message was misused as the parameter name)
 - Errors from the native asynchronous read (e.g. device failure while streaming) are now
-  surfaced via `StopReadSamplesAsync()` / `LastAsyncException` instead of silently ending
+  surfaced via `StopReadSamplesAsync()` / `AsyncReadException` instead of silently ending
   the streaming; a requested stop is recognized and is never reported as an error, even
   though the native read can return a nonzero code on cancellation
 - Changing `UseRawBufferMode` while an asynchronous reading is running no longer crashes

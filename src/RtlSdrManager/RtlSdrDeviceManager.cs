@@ -168,11 +168,19 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     /// <returns>True if the scope was entered (and must be exited); otherwise false.</returns>
     private static bool TryEnterSuppressionScope()
     {
+        // Fast path: with suppression disabled (the default), do not touch the global lock.
+        // Every device property setter enters a scope, so locking here would serialize
+        // configuration across devices/threads for no reason.
+        if (!Volatile.Read(ref _shouldSuppressConsoleOutput))
+        {
+            return false;
+        }
+
         lock (SuppressorLock)
         {
             if (!_shouldSuppressConsoleOutput)
             {
-                return false;  // Respect configuration flag
+                return false;  // Re-check under the lock: the flag may have changed
             }
 
             _suppressionScopeCount++;

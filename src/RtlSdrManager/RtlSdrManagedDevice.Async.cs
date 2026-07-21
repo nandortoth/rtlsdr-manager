@@ -140,12 +140,13 @@ public sealed partial class RtlSdrManagedDevice
     public bool UseRawBufferMode { get; set; }
 
     /// <summary>
-    /// The last error captured during asynchronous reading, or null if no error happened.
-    /// When an error happens (e.g. the buffer is full and <see cref="DropSamplesOnFullBuffer"/>
-    /// is false, or a <see cref="SamplesAvailable"/> handler throws), the reading stops and
-    /// the error is available here; <see cref="StopReadSamplesAsync"/> also throws it.
+    /// The error that stopped the current (or most recent) asynchronous reading, or null if
+    /// no error happened. An error is captured when the buffer is full and
+    /// <see cref="DropSamplesOnFullBuffer"/> is false, when a <see cref="SamplesAvailable"/>
+    /// handler throws, or when the device read fails on its own. The value is reset when a new
+    /// reading starts; <see cref="StopReadSamplesAsync"/> also throws it.
     /// </summary>
-    public Exception? LastAsyncException => Volatile.Read(ref _asyncReadException);
+    public Exception? AsyncReadException => Volatile.Read(ref _asyncReadException);
 
     #endregion
 
@@ -263,6 +264,14 @@ public sealed partial class RtlSdrManagedDevice
     /// <param name="len">Length of the buffer.</param>
     private unsafe void ProcessSamplesFromCallback(byte* buf, uint len)
     {
+        // Once a stop or a fault was requested, cancellation is asynchronous and some
+        // in-flight transfers still arrive. Skip them: no work, no wasted allocations,
+        // and the stopping error (if any) is already recorded.
+        if (_stopRequested)
+        {
+            return;
+        }
+
         if (_activeRawBufferMode)
         {
             // Raw buffer mode: rent from pool, memcpy, hand off via Channel.
@@ -363,7 +372,7 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Record the error and request the asynchronous reading to stop.
     /// The error is thrown by <see cref="StopReadSamplesAsync"/> and is available
-    /// via <see cref="LastAsyncException"/>.
+    /// via <see cref="AsyncReadException"/>.
     /// </summary>
     /// <param name="ex">The captured error.</param>
     private void FailAsyncRead(Exception ex)
@@ -371,8 +380,21 @@ public sealed partial class RtlSdrManagedDevice
         RecordAsyncError(ex);
 
         // Request the reading to stop; best effort, the result is intentionally ignored.
+        _ = RequestStopReading();
+    }
+
+    /// <summary>
+    /// Request the native asynchronous reading to stop.
+    /// Sets <see cref="_stopRequested"/> before cancelling, so the worker thread ignores the
+    /// nonzero code a requested cancel can produce. This ordering is a correctness invariant;
+    /// both the callback (via <see cref="FailAsyncRead"/>) and <see cref="StopReadSamplesAsync"/>
+    /// go through here so it lives in one place.
+    /// </summary>
+    /// <returns>The return code of the native cancel call.</returns>
+    private int RequestStopReading()
+    {
         _stopRequested = true;
-        _ = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
+        return LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
     }
 
     /// <summary>
@@ -400,7 +422,7 @@ public sealed partial class RtlSdrManagedDevice
         // internal transfer code, which is often nonzero (canceling transfers that
         // already completed yields -5), so it must be ignored. Record real errors,
         // so they are not lost: StopReadSamplesAsync throws them,
-        // LastAsyncException exposes them.
+        // AsyncReadException exposes them.
         if (returnCode != 0 && !_stopRequested)
         {
             RecordAsyncError(new RtlSdrLibraryExecutionException(
@@ -447,10 +469,11 @@ public sealed partial class RtlSdrManagedDevice
                 $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
         }
 
-        // Capture the buffer mode for this reading session, and reset the stop request
-        // of any previous session.
+        // Capture the buffer mode for this reading session, and reset the per-session
+        // state (stop request and captured error) of any previous session.
         _activeRawBufferMode = UseRawBufferMode;
         _stopRequested = false;
+        _asyncReadException = null;
 
         // Initialize the appropriate buffer based on mode.
         if (_activeRawBufferMode)
@@ -478,17 +501,20 @@ public sealed partial class RtlSdrManagedDevice
         // StopReadSamplesAsync after the worker thread has finished.
         _deviceContext = GCHandle.Alloc(this);
 
-        // Start the worker with highest priority.
+        // Start the worker with highest priority. The thread is a background thread, so a
+        // worker left running on a wedged device (see StopReadSamplesAsync / Dispose) cannot
+        // block process exit.
         _asyncWorker = new Thread(SamplesAsyncReader)
         {
-            Priority = ThreadPriority.Highest
+            Priority = ThreadPriority.Highest,
+            IsBackground = true
         };
         _asyncWorker.Start(requestedSamples * 2);
     }
 
     /// <summary>
     /// Stop reading samples from the device.
-    /// If an error was captured during the reading (see <see cref="LastAsyncException"/>),
+    /// If an error was captured during the reading (see <see cref="AsyncReadException"/>),
     /// it is thrown from here.
     /// </summary>
     /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the reading cannot be stopped.</exception>
@@ -501,19 +527,17 @@ public sealed partial class RtlSdrManagedDevice
             return;
         }
 
-        // Mark the stop as requested, so the worker does not report the nonzero
-        // native code a requested cancel can produce.
-        _stopRequested = true;
-
-        // Cancel the reading with the native function. Do not throw on failure here:
-        // the callback may have canceled the reading already (on a captured error),
+        // Mark the stop as requested (so the worker ignores the nonzero native code a
+        // requested cancel can produce) and cancel the reading. Do not throw on failure
+        // here: the callback may have canceled the reading already (on a captured error),
         // in which case this request fails although the reading is finished.
-        int cancelReturnCode = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
+        int cancelReturnCode = RequestStopReading();
 
         // Wait for the worker thread to finish. The join is bounded: if the cancel
         // request genuinely failed while the device keeps streaming, an unbounded
         // join would never return. On timeout, keep all state intact (worker, buffers,
-        // device context), so the caller can retry.
+        // device context) and throw: the caller can retry, or Dispose will leak the
+        // resources safely rather than free them under a still-running native callback.
         if (!_asyncWorker.Join(TimeSpan.FromSeconds(5)))
         {
             throw new RtlSdrLibraryExecutionException(
@@ -545,9 +569,11 @@ public sealed partial class RtlSdrManagedDevice
             _rawAsyncChannel = null;
         }
 
-        // If an error was captured during the reading, throw it now.
-        // A nonzero cancel code on an already-finished reading is not an error.
-        Exception? asyncReadException = Interlocked.Exchange(ref _asyncReadException, null);
+        // If an error was captured during the reading, throw it now. The slot is not
+        // cleared: the error stays observable via AsyncReadException until the next
+        // StartReadSamplesAsync resets it. A nonzero cancel code on an already-finished
+        // reading is not an error.
+        Exception? asyncReadException = Volatile.Read(ref _asyncReadException);
         if (asyncReadException != null)
         {
             throw new RtlSdrManagedDeviceException(
