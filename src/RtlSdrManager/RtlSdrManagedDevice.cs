@@ -191,13 +191,14 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
 
     /// <summary>
     /// Enablement of KerberosSDR functionalities:
-    /// FrequencyDitheringModes, GPIOStates
+    /// FrequencyDitheringModes, GPIOStates.
+    /// Once it is enabled, it cannot be disabled.
     /// </summary>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public KerberosSDRModes KerberosSDRMode
     {
         get => _kerberosSDRMode;
-        init
+        set
         {
             // KerberosSDR functionalities cannot be disabled once it is enabled.
             if (_kerberosSDRMode == KerberosSDRModes.Enabled &&
@@ -318,9 +319,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // If the frequency is wrong, throw an exception.
             if (wrongFrequency)
             {
-                throw new ArgumentOutOfRangeException(
+                throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the center frequency of the device. " +
-                    $"Wrong frequency was given: {value}.");
+                    "The given frequency is outside the range supported by the tuner.");
             }
 
             // Set the new value on the device with console suppression.
@@ -367,9 +368,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Crystal frequencies cannot be higher than 28.8 MHz.
             if (value.Rtl2832Frequency.MHz > 28.8 || value.TunerFrequency.MHz > 28.8)
             {
-                throw new ArgumentOutOfRangeException(
+                throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the crystal frequencies of the device. " +
-                    $"Wrong frequency was given: {value}.");
+                    "Crystal frequencies cannot be higher than 28.8 MHz.");
             }
 
             // Set the new value on the device.
@@ -420,9 +421,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             if ((value.Hz < 225001 || value.Hz > 300000) &&
                 (value.Hz < 900001 || value.Hz > 3200000))
             {
-                throw new ArgumentOutOfRangeException(
+                throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the sample rate of the device. " +
-                    $"Wrong frequency was given: {value}.");
+                    "Supported ranges: 225001 - 300000 Hz and 900001 - 3200000 Hz.");
             }
 
             // Set the new value on the device with console suppression.
@@ -652,9 +653,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Is the given value supported?
             if (!SupportedTunerGains.Contains(value))
             {
-                throw new ArgumentOutOfRangeException(
+                throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the tuner gain of the device. " +
-                    $"Wrong tuner gain was given: {value}, it is not supported.");
+                    "The given tuner gain is not supported, see SupportedTunerGains.");
             }
 
             // Convert double (dB) to int.

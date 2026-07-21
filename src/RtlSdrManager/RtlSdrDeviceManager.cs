@@ -29,6 +29,7 @@ namespace RtlSdrManager;
 /// <summary>
 /// Class for managing RTL-SDR devices.
 /// The class uses the "librtlsdr" shared library.
+/// The class is not thread-safe: open and close managed devices from a single thread.
 /// </summary>
 /// <inheritdoc />
 public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
@@ -57,8 +58,7 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
         // Initialize the dictionary for the managed devices.
         _managedDevices = new Dictionary<string, RtlSdrManagedDevice>();
 
-        // Initialize the list for the devices on the system, and fill it up.
-        Devices = new Dictionary<uint, DeviceInfo>();
+        // Enumerate the RTL-SDR devices on the system.
         Devices = GetAllDeviceInfo();
     }
 
@@ -117,8 +117,11 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
 
     /// <summary>
     /// Return the basic data of the supported RTL-SDR devices on the system.
+    /// The list is a snapshot from initialization or from the last <see cref="RefreshDevices"/>
+    /// call; a refresh replaces the dictionary instance, so re-read this property instead of
+    /// holding on to a previously returned dictionary.
     /// </summary>
-    public Dictionary<uint, DeviceInfo> Devices { get; }
+    public Dictionary<uint, DeviceInfo> Devices { get; private set; }
 
     // Console output suppression configuration and implementation
     // CRITICAL: Uses a global singleton suppressor with reference counting to avoid file descriptor
@@ -254,19 +257,13 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
 
     /// <summary>
     /// Get fundamental information about all the devices on the system.
+    /// An empty dictionary is returned when there is no device on the system.
     /// </summary>
-    /// <returns></returns>
-    /// <exception cref="RtlSdrDeviceException"></exception>
+    /// <returns>Fundamental information of the devices, keyed by device index.</returns>
     private static Dictionary<uint, DeviceInfo> GetAllDeviceInfo()
     {
         // Check the number of the devices on the system.
         uint deviceCount = LibRtlSdr.rtlsdr_get_device_count();
-
-        // If there is no device on the system, throw an exception.
-        if (deviceCount == 0)
-        {
-            throw new RtlSdrDeviceException("There is no supported RTL-SDR device on the system.");
-        }
 
         // Create the list, which will contain the devices.
         var devices = new Dictionary<uint, DeviceInfo>();
@@ -281,6 +278,14 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
         // Return the list.
         return devices;
     }
+
+    /// <summary>
+    /// Re-enumerate the RTL-SDR devices on the system and refresh <see cref="Devices"/>.
+    /// Useful when devices are plugged in or removed at runtime.
+    /// The refresh does not affect already opened (managed) devices. Note that device
+    /// indices are positional: they can change after plugging or unplugging devices.
+    /// </summary>
+    public void RefreshDevices() => Devices = GetAllDeviceInfo();
 
     /// <summary>
     /// Open RTL-SDR device for further usage.

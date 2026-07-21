@@ -67,6 +67,12 @@ public sealed partial class RtlSdrManagedDevice
     private Exception? _asyncReadException;
 
     /// <summary>
+    /// Buffer mode captured at StartReadSamplesAsync. The callback branches on this
+    /// snapshot, so toggling <see cref="UseRawBufferMode"/> during reading has no effect.
+    /// </summary>
+    private bool _activeRawBufferMode;
+
+    /// <summary>
     /// Default amount of requested samples from RTL-SDR device.
     /// </summary>
     private const uint AsyncDefaultReadLength = 16384;
@@ -118,7 +124,8 @@ public sealed partial class RtlSdrManagedDevice
     /// When true, the device uses raw buffer mode: samples are delivered as raw byte[]
     /// buffers via <see cref="Channel{T}"/> instead of per-sample <see cref="IQData"/> objects
     /// via <see cref="ConcurrentQueue{T}"/>.
-    /// Must be set before calling <see cref="StartReadSamplesAsync"/>. Default: false.
+    /// Must be set before calling <see cref="StartReadSamplesAsync"/>; changes take
+    /// effect at the next <see cref="StartReadSamplesAsync"/> call. Default: false.
     /// </summary>
     public bool UseRawBufferMode { get; set; }
 
@@ -246,7 +253,7 @@ public sealed partial class RtlSdrManagedDevice
     /// <param name="len">Length of the buffer.</param>
     private unsafe void ProcessSamplesFromCallback(byte* buf, uint len)
     {
-        if (UseRawBufferMode)
+        if (_activeRawBufferMode)
         {
             // Raw buffer mode: rent from pool, memcpy, hand off via Channel.
             Channel<RawSampleBuffer> channel = _rawAsyncChannel!;
@@ -373,18 +380,51 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     private void SamplesAsyncReader(object? readLength)
     {
-        // Read from device.
-        LibRtlSdr.rtlsdr_read_async(_deviceHandle!, _asyncCallback,
+        // Read from device. The call blocks until the reading is canceled or fails.
+        int returnCode = LibRtlSdr.rtlsdr_read_async(_deviceHandle!, _asyncCallback,
             (IntPtr)_deviceContext, 0, (uint)readLength!);
+
+        // A nonzero code means the reading ended on its own (e.g. device failure);
+        // a requested cancel returns zero. Record the error, so it is not lost:
+        // StopReadSamplesAsync throws it, LastAsyncException exposes it.
+        if (returnCode != 0)
+        {
+            RecordAsyncError(new RtlSdrLibraryExecutionException(
+                "Problem happened during asynchronous data reading from the device. " +
+                "The reading stopped unexpectedly. " +
+                $"Error code: {returnCode}, device index: {DeviceInfo.Index}."));
+        }
+    }
+
+    /// <summary>
+    /// Validate the amount of requested samples for asynchronous reading.
+    /// The byte size of a device read (requested samples * 2) must be a multiple of 512.
+    /// </summary>
+    /// <param name="requestedSamples">Amount of requested samples by one device read.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is not supported.</exception>
+    internal static void ValidateRequestedSamples(uint requestedSamples)
+    {
+        if (requestedSamples == 0 || requestedSamples > uint.MaxValue / 2 ||
+            (requestedSamples * 2) % 512 != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestedSamples), requestedSamples,
+                "Requested sample count must be greater than zero, and its byte size " +
+                "(requested samples * 2) must be a multiple of 512.");
+        }
     }
 
     /// <summary>
     /// Start reading samples (I/Q) from the device asynchronously.
     /// </summary>
-    /// <param name="requestedSamples">Amount of requested samples by one device read.</param>
+    /// <param name="requestedSamples">Amount of requested samples by one device read.
+    /// The byte size (requested samples * 2) must be a multiple of 512.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when requestedSamples is not supported.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
     {
+        // Validate the requested amount before touching any state.
+        ValidateRequestedSamples(requestedSamples);
+
         // Check the worker thread.
         if (_asyncWorker != null)
         {
@@ -393,8 +433,11 @@ public sealed partial class RtlSdrManagedDevice
                 $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
         }
 
+        // Capture the buffer mode for this reading session.
+        _activeRawBufferMode = UseRawBufferMode;
+
         // Initialize the appropriate buffer based on mode.
-        if (UseRawBufferMode)
+        if (_activeRawBufferMode)
         {
             // Calculate channel capacity from MaxAsyncBufferSize.
             // Each buffer holds requestedSamples, so capacity = MaxAsyncBufferSize / requestedSamples.

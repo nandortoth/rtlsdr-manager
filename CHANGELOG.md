@@ -9,8 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `LastAsyncException` property on `RtlSdrManagedDevice` to observe errors captured
   during asynchronous reading without stopping it
+- `RefreshDevices()` on `RtlSdrDeviceManager` for re-enumerating the RTL-SDR devices
+  at runtime (e.g. after plugging in a device)
+
+### Changed
+- **BREAKING**: `RtlSdrDeviceManager.Instance` no longer throws when no RTL-SDR device
+  is present; check `CountDevices` instead. The manager now also works when a device is
+  plugged in only after the application started (previously the "no devices" error was
+  cached forever by the singleton)
+- `KerberosSDRMode` is now settable after opening a device (`init` → `set`); previously
+  the KerberosSDR feature set (`FrequencyDitheringMode`, `SetGPIO`) was unreachable
+  because instances are only created internally by the manager
+- `StartReadSamplesAsync` now validates its argument: the requested sample count must be
+  greater than zero and its byte size (requested samples * 2) must be a multiple of 512,
+  otherwise `ArgumentOutOfRangeException` is thrown (previously zero caused a
+  `DivideByZeroException` in raw buffer mode)
 
 ### Fixed
+- `ArgumentOutOfRangeException` thrown by the `CenterFrequency`, `CrystalFrequency`,
+  `SampleRate` and `TunerGain` setters now carries a proper `ParamName`, actual value and
+  message (previously the message was misused as the parameter name)
+- Errors from the native asynchronous read (e.g. device failure while streaming) are now
+  surfaced via `StopReadSamplesAsync()` / `LastAsyncException` instead of silently ending
+  the streaming
+- Changing `UseRawBufferMode` while an asynchronous reading is running no longer crashes
+  the native callback; the mode is captured at `StartReadSamplesAsync` and changes take
+  effect at the next start
 - Async callback no longer throws managed exceptions across the native boundary,
   which terminated the process (triggered by a full buffer with
   `DropSamplesOnFullBuffer = false` — the default — or by a throwing
