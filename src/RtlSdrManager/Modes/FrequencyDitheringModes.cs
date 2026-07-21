@@ -21,10 +21,19 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum FrequencyDitheringModes
 {
+    /// <summary>
+    /// Frequency dithering is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// Frequency dithering is enabled.
+    /// </summary>
     Enabled,
 
-    // This value is used for the devices, which do not support
-    // the dithering. It is for internal usage.
+    /// <summary>
+    /// This value is used for the devices, which do not support
+    /// the dithering. It is for internal usage.
+    /// </summary>
     NotSet
 }

@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum GPIOModes
 {
+    /// <summary>
+    /// The GPIO pin is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// The GPIO pin is enabled.
+    /// </summary>
     Enabled
 }

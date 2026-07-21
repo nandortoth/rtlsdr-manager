@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum KerberosSDRModes
 {
+    /// <summary>
+    /// The KerberosSDR functionalities are disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// The KerberosSDR functionalities are enabled.
+    /// </summary>
     Enabled
 }

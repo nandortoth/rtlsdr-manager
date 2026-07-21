@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum BiasTeeModes
 {
+    /// <summary>
+    /// The Bias Tee is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// The Bias Tee is enabled.
+    /// </summary>
     Enabled
 }

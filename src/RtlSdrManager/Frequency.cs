@@ -136,9 +136,24 @@ public readonly record struct Frequency(uint Hz) : IComparable<Frequency>, IComp
     public override string ToString() => $"{Hz} Hz; {KHz:F3} KHz; {MHz:F6} MHz; {GHz:F9} GHz";
 
     // Comparison operators
+    /// <summary>
+    /// Determines whether one frequency is less than another.
+    /// </summary>
     public static bool operator <(Frequency left, Frequency right) => left.Hz < right.Hz;
+
+    /// <summary>
+    /// Determines whether one frequency is greater than another.
+    /// </summary>
     public static bool operator >(Frequency left, Frequency right) => left.Hz > right.Hz;
+
+    /// <summary>
+    /// Determines whether one frequency is less than or equal to another.
+    /// </summary>
     public static bool operator <=(Frequency left, Frequency right) => left.Hz <= right.Hz;
+
+    /// <summary>
+    /// Determines whether one frequency is greater than or equal to another.
+    /// </summary>
     public static bool operator >=(Frequency left, Frequency right) => left.Hz >= right.Hz;
 
     // Arithmetic operators

@@ -21,6 +21,14 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum TestModes
 {
+    /// <summary>
+    /// The test mode of the RTL2832 is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// The test mode of the RTL2832 is enabled: the device returns an
+    /// 8 bit counter instead of the samples.
+    /// </summary>
     Enabled
 }

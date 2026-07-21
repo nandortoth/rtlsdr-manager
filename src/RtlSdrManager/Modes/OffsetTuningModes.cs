@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum OffsetTuningModes
 {
+    /// <summary>
+    /// Offset tuning is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// Offset tuning is enabled.
+    /// </summary>
     Enabled
 }

@@ -369,16 +369,10 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
 
     /// <summary>
     /// Close all the managed devices.
+    /// Does nothing when there is no managed (opened) device.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when there are no managed devices to close.</exception>
     public void CloseAllManagedDevice()
     {
-        // Check how many managed device we have.
-        if (_managedDevices.Count == 0)
-        {
-            throw new InvalidOperationException("There are no managed (opened) RTL-SDR devices to close.");
-        }
-
         // Close all the devices.
         string[] managedDeviceKeys = _managedDevices.Keys.ToArray();
         foreach (string key in managedDeviceKeys)

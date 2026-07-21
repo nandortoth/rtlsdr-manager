@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum TunerGainModes
 {
+    /// <summary>
+    /// The tuner gain is controlled automatically (AGC).
+    /// </summary>
     AGC,
+
+    /// <summary>
+    /// The tuner gain is set manually via the TunerGain property.
+    /// </summary>
     Manual
 }

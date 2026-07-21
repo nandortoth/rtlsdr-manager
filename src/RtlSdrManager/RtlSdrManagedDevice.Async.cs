@@ -85,6 +85,7 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Accessor for the async I/Q buffer.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
     public ConcurrentQueue<IQData> AsyncBuffer
     {
         get
@@ -92,7 +93,7 @@ public sealed partial class RtlSdrManagedDevice
             // Check the buffer. It can be reachable, if there is an async reading.
             if (_asyncBuffer == null)
             {
-                throw new RtlSdrLibraryExecutionException(
+                throw new InvalidOperationException(
                     "The async buffer is not initialized yet. " +
                     "StartReadSamplesAsync function must be invoked first.");
             }
@@ -152,13 +153,13 @@ public sealed partial class RtlSdrManagedDevice
     /// <param name="maxCount">Maximum amount of requested I/Q samples. If there are fewer samples in the buffer,
     /// than the requested amount, maxCount will be reduced.</param>
     /// <returns>List if I/Q samples.</returns>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
     public List<IQData> GetSamplesFromAsyncBuffer(int maxCount)
     {
         // Check the buffer. It can be reachable, if there is an async reading.
         if (_asyncBuffer == null)
         {
-            throw new RtlSdrLibraryExecutionException(
+            throw new InvalidOperationException(
                 "The async buffer is not initialized yet. " +
                 "StartReadSamplesAsync function must be invoked first.");
         }
@@ -193,14 +194,14 @@ public sealed partial class RtlSdrManagedDevice
     /// The caller MUST call <see cref="RawSampleBuffer.Return"/> after processing.
     /// </summary>
     /// <returns>Raw sample buffer, or null if none available.</returns>
-    /// <exception cref="RtlSdrLibraryExecutionException">
+    /// <exception cref="InvalidOperationException">
     /// Thrown when raw buffer mode is not active or <see cref="StartReadSamplesAsync"/> has not been called.
     /// </exception>
     public RawSampleBuffer? GetRawSamplesFromAsyncBuffer()
     {
         if (_rawAsyncChannel == null)
         {
-            throw new RtlSdrLibraryExecutionException(
+            throw new InvalidOperationException(
                 "The raw async channel is not initialized yet. " +
                 "Set UseRawBufferMode = true and call StartReadSamplesAsync first.");
         }

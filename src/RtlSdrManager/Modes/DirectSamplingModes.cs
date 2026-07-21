@@ -17,11 +17,22 @@
 namespace RtlSdrManager.Modes;
 
 /// <summary>
-/// Tuner gain modes for the device.
+/// Direct sampling modes for the device.
 /// </summary>
 public enum DirectSamplingModes
 {
+    /// <summary>
+    /// Direct sampling is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// Direct sampling with the I-ADC input enabled.
+    /// </summary>
     InPhaseADCInputEnabled,
+
+    /// <summary>
+    /// Direct sampling with the Q-ADC input enabled.
+    /// </summary>
     QuadratureADCInputEnabled
 }

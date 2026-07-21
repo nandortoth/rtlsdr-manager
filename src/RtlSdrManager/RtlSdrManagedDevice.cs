@@ -107,20 +107,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         action();
     }
 
-    /// <summary>
-    /// Executes a function with scoped console output suppression.
-    /// Uses reference-counted global suppressor to prevent file descriptor corruption
-    /// when multiple devices are being configured simultaneously.
-    /// </summary>
-    /// <typeparam name="T">Return type of the function.</typeparam>
-    /// <param name="func">The function to execute.</param>
-    /// <returns>The result of the function.</returns>
-    private T ExecuteWithSuppression<T>(Func<T> func)
-    {
-        using var scope = new RtlSdrDeviceManager.SuppressionScope();
-        return func();
-    }
-
     #endregion
 
     #region Constructor and DeviceInfo
@@ -140,8 +126,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
 
         // Open the device and get a safe handle.
         // OpenDevice will throw an exception if the device cannot be opened.
-        // Console output suppression is managed globally, not per-device
-        _deviceHandle = LibRtlSdr.OpenDevice(deviceIndex, suppressConsoleOutput: false);
+        _deviceHandle = LibRtlSdr.OpenDevice(deviceIndex);
 
         // Set the test mode to disable.
         // Private variable is used for initialization, because this function is
@@ -493,7 +478,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                         if (returnValue != 0)
                         {
                             throw new RtlSdrLibraryExecutionException(
-                                "Problem happened during setting the tuner gain mode of the device. " +
+                                "Problem happened during setting the tuner bandwidth of the device. " +
                                 $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                         }
                     });
@@ -515,8 +500,8 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <summary>
     /// Set the tuner bandwidth for the device.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when automatic tuner bandwidth selection mode is enabled.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
     public Frequency TunerBandwidth
     {
         get
@@ -524,7 +509,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Check the tuner bandwidth selection mode.
             if (TunerBandwidthSelectionMode == TunerBandwidthSelectionModes.Automatic)
             {
-                throw new RtlSdrLibraryExecutionException(
+                throw new InvalidOperationException(
                     "Automatic tuner bandwidth selection mode is enabled, " +
                     "it is not possible to use the TunerBandwidth property. " +
                     $"Device index: {DeviceInfo.Index}.");
@@ -538,7 +523,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Check the tuner bandwidth selection mode.
             if (TunerBandwidthSelectionMode == TunerBandwidthSelectionModes.Automatic)
             {
-                throw new RtlSdrLibraryExecutionException(
+                throw new InvalidOperationException(
                     "Automatic tuner bandwidth selection mode is enabled, " +
                     "it is not possible to use the TunerBandwidth property. " +
                     $"Device index: {DeviceInfo.Index}.");
@@ -612,6 +597,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Set the tuner gain for the device.
     /// Manual tuner gain mode must be enabled for this to work.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     public double TunerGain
@@ -621,7 +607,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Check the tuner gain mode.
             if (TunerGainMode == TunerGainModes.AGC)
             {
-                throw new RtlSdrLibraryExecutionException(
+                throw new InvalidOperationException(
                     "AGC tuner gain mode is enabled, it is not possible to use the TunerGain property. " +
                     $"Device index: {DeviceInfo.Index}.");
             }
@@ -645,21 +631,23 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Check the tuner gain mode.
             if (TunerGainMode == TunerGainModes.AGC)
             {
-                throw new RtlSdrLibraryExecutionException(
+                throw new InvalidOperationException(
                     "AGC tuner gain mode is enabled, it is not possible to use the TunerGain property. " +
                     $"Device index: {DeviceInfo.Index}.");
             }
 
-            // Is the given value supported?
-            if (!SupportedTunerGains.Contains(value))
+            // Convert double (dB) to int (tenths of dB). Rounding avoids floating point
+            // truncation with a plain cast (e.g. 49.6 * 10 would truncate to 495).
+            int gain = (int)Math.Round(value * 10);
+
+            // Is the given value supported? Compare in tenths of dB to avoid
+            // floating point equality problems.
+            if (!SupportedTunerGains.Any(supportedGain => (int)Math.Round(supportedGain * 10) == gain))
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the tuner gain of the device. " +
                     "The given tuner gain is not supported, see SupportedTunerGains.");
             }
-
-            // Convert double (dB) to int.
-            int gain = (int)(value * 10);
 
             // Set the gain for the device
             ExecuteWithSuppression(() =>

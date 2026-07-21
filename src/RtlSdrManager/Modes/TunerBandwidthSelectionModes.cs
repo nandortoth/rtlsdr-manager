@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum TunerBandwidthSelectionModes
 {
+    /// <summary>
+    /// The tuner bandwidth is selected automatically by the device.
+    /// </summary>
     Automatic,
+
+    /// <summary>
+    /// The tuner bandwidth is set manually via the TunerBandwidth property.
+    /// </summary>
     Manual
 }

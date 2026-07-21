@@ -118,10 +118,9 @@ internal static partial class LibRtlSdr
     /// Open the RTL-SDR device for further usage.
     /// </summary>
     /// <param name="index">Device Index.</param>
-    /// <param name="suppressConsoleOutput">If true, suppresses all console output from librtlsdr (internal use only).</param>
     /// <returns>SafeRtlSdrHandle on success.</returns>
     /// <exception cref="RtlSdrLibraryExecutionException">Thrown when device cannot be opened.</exception>
-    internal static SafeRtlSdrHandle OpenDevice(uint index, bool suppressConsoleOutput = false)
+    internal static SafeRtlSdrHandle OpenDevice(uint index)
     {
         int result = rtlsdr_open(out IntPtr rawHandle, index);
         if (result != 0)

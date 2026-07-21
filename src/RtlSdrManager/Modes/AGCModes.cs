@@ -21,6 +21,13 @@ namespace RtlSdrManager.Modes;
 /// </summary>
 public enum AGCModes
 {
+    /// <summary>
+    /// The internal digital AGC of the RTL2832 is disabled.
+    /// </summary>
     Disabled,
+
+    /// <summary>
+    /// The internal digital AGC of the RTL2832 is enabled.
+    /// </summary>
     Enabled
 }

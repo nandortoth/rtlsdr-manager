@@ -21,11 +21,38 @@ namespace RtlSdrManager.Hardware;
 /// </summary>
 public enum TunerTypes
 {
+    /// <summary>
+    /// Unknown tuner type, also used as error indication.
+    /// </summary>
     Unknown,
+
+    /// <summary>
+    /// Elonics E4000.
+    /// </summary>
     E4000,
+
+    /// <summary>
+    /// Fitipower FC0012.
+    /// </summary>
     FC0012,
+
+    /// <summary>
+    /// Fitipower FC0013.
+    /// </summary>
     FC0013,
+
+    /// <summary>
+    /// FCI FC2580.
+    /// </summary>
     FC2580,
+
+    /// <summary>
+    /// Rafael Micro R820T.
+    /// </summary>
     R820T,
+
+    /// <summary>
+    /// Rafael Micro R828D.
+    /// </summary>
     R828D
 }

@@ -11,8 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during asynchronous reading without stopping it
 - `RefreshDevices()` on `RtlSdrDeviceManager` for re-enumerating the RTL-SDR devices
   at runtime (e.g. after plugging in a device)
+- XML documentation file is generated and shipped in the NuGet package, so consumers
+  get IntelliSense documentation (including newly documented enum members)
 
 ### Changed
+- **BREAKING**: target framework is `net10.0` only; the `net9.0` target was dropped
+  (.NET 9 is a Standard Term Support release that reaches end of support on November 10, 2026,
+  while .NET 10 is the current LTS release; this reverts the 0.6.2 widening)
+- **BREAKING**: state errors now throw `InvalidOperationException` instead of
+  `RtlSdrLibraryExecutionException`: reading `AsyncBuffer`, `GetSamplesFromAsyncBuffer`
+  or `GetRawSamplesFromAsyncBuffer` before `StartReadSamplesAsync`, and using
+  `TunerBandwidth` in automatic mode or `TunerGain` in AGC mode
+- **BREAKING**: `CloseAllManagedDevice()` is a no-op when no devices are open
+  (previously threw `InvalidOperationException`)
 - **BREAKING**: `RtlSdrDeviceManager.Instance` no longer throws when no RTL-SDR device
   is present; check `CountDevices` instead. The manager now also works when a device is
   plugged in only after the application started (previously the "no devices" error was
@@ -35,6 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changing `UseRawBufferMode` while an asynchronous reading is running no longer crashes
   the native callback; the mode is captured at `StartReadSamplesAsync` and changes take
   effect at the next start
+- Setting `TunerGain` no longer risks sending an off-by-one gain value to the device
+  (`(int)(49.6 * 10)` truncated to 495 instead of 496); the conversion and the validation
+  now use rounded tenths of dB
+- Corrected the error message of the `TunerBandwidthSelectionMode` setter (said
+  "tuner gain mode" instead of "tuner bandwidth")
+- Corrected the `DirectSamplingModes` XML documentation (said "Tuner gain modes")
+
+### Removed
+- Unused `suppressConsoleOutput` parameter of the internal `OpenDevice` helper and the
+  unused generic `ExecuteWithSuppression<T>` overload
 - Async callback no longer throws managed exceptions across the native boundary,
   which terminated the process (triggered by a full buffer with
   `DropSamplesOnFullBuffer = false` — the default — or by a throwing
