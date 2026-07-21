@@ -61,6 +61,12 @@ public sealed partial class RtlSdrManagedDevice
     private Thread? _asyncWorker;
 
     /// <summary>
+    /// First error captured during asynchronous reading (native callback or worker thread).
+    /// Written with Interlocked.CompareExchange; the first error wins.
+    /// </summary>
+    private Exception? _asyncReadException;
+
+    /// <summary>
     /// Default amount of requested samples from RTL-SDR device.
     /// </summary>
     private const uint AsyncDefaultReadLength = 16384;
@@ -115,6 +121,14 @@ public sealed partial class RtlSdrManagedDevice
     /// Must be set before calling <see cref="StartReadSamplesAsync"/>. Default: false.
     /// </summary>
     public bool UseRawBufferMode { get; set; }
+
+    /// <summary>
+    /// The last error captured during asynchronous reading, or null if no error happened.
+    /// When an error happens (e.g. the buffer is full and <see cref="DropSamplesOnFullBuffer"/>
+    /// is false, or a <see cref="SamplesAvailable"/> handler throws), the reading stops and
+    /// the error is available here; <see cref="StopReadSamplesAsync"/> also throws it.
+    /// </summary>
+    public Exception? LastAsyncException => Volatile.Read(ref _asyncReadException);
 
     #endregion
 
@@ -189,6 +203,9 @@ public sealed partial class RtlSdrManagedDevice
 
     /// <summary>
     /// Callback function for async reading (I/Q).
+    /// No exception may escape to the native caller: an exception which crosses the
+    /// native boundary terminates the process. Errors are recorded via
+    /// <see cref="FailAsyncRead"/>, which stops the reading instead.
     /// </summary>
     /// <param name="buf">Buffer to store samples.</param>
     /// <param name="len">Length of the buffer.</param>
@@ -211,26 +228,45 @@ public sealed partial class RtlSdrManagedDevice
             return;
         }
 
-        if (target.UseRawBufferMode)
+        try
+        {
+            target.ProcessSamplesFromCallback(buf, len);
+        }
+        catch (Exception ex)
+        {
+            // Record the error and stop the reading; never rethrow to the native caller.
+            target.FailAsyncRead(ex);
+        }
+    }
+
+    /// <summary>
+    /// Process the samples delivered by the native callback.
+    /// </summary>
+    /// <param name="buf">Buffer to store samples.</param>
+    /// <param name="len">Length of the buffer.</param>
+    private unsafe void ProcessSamplesFromCallback(byte* buf, uint len)
+    {
+        if (UseRawBufferMode)
         {
             // Raw buffer mode: rent from pool, memcpy, hand off via Channel.
-            Channel<RawSampleBuffer> channel = target._rawAsyncChannel!;
+            Channel<RawSampleBuffer> channel = _rawAsyncChannel!;
             int byteLength = (int)len;
 
-            // Check backpressure: if channel is full, either drop or throw
-            // (consistent with legacy IQData mode behavior).
-            if (channel.Reader.Count >= target._rawChannelCapacity)
+            // Check backpressure: if the channel is full, drop the samples. If dropping
+            // was not asked, record the error as well, which stops the reading.
+            if (channel.Reader.Count >= _rawChannelCapacity)
             {
-                if (!target.DropSamplesOnFullBuffer)
+                DroppedSamplesCount += (uint)(byteLength / 2);
+
+                if (!DropSamplesOnFullBuffer)
                 {
-                    throw new RtlSdrManagedDeviceException(
+                    FailAsyncRead(new RtlSdrManagedDeviceException(
                         "The raw async channel of the managed device is full. " +
                         $"Current channel usage: {channel.Reader.Count} buffers, " +
-                        $"Maximum capacity: {target._rawChannelCapacity} buffers, " +
-                        $"Device index: {target.DeviceInfo.Index}.");
+                        $"Maximum capacity: {_rawChannelCapacity} buffers, " +
+                        $"Device index: {DeviceInfo.Index}."));
                 }
 
-                target.DroppedSamplesCount += (uint)(byteLength / 2);
                 return;
             }
 
@@ -246,14 +282,14 @@ public sealed partial class RtlSdrManagedDevice
             {
                 // Channel full (race with pre-check above) — return buffer and count as dropped.
                 ArrayPool<byte>.Shared.Return(pooledBuffer);
-                target.DroppedSamplesCount += (uint)(byteLength / 2);
+                DroppedSamplesCount += (uint)(byteLength / 2);
                 return;
             }
 
             // Raise the SampleAvailable event (skip allocation if no subscribers).
-            if (target.SamplesAvailable != null)
+            if (SamplesAvailable != null)
             {
-                target.OnSamplesAvailable(new SamplesAvailableEventArgs(byteLength / 2));
+                OnSamplesAvailable(new SamplesAvailableEventArgs(byteLength / 2));
             }
         }
         else
@@ -264,23 +300,23 @@ public sealed partial class RtlSdrManagedDevice
             int length = (int)len / 2;
 
             // The buffer is guaranteed to be non-null when the callback is active.
-            ConcurrentQueue<IQData>? buffer = target._asyncBuffer!;
+            ConcurrentQueue<IQData> buffer = _asyncBuffer!;
 
-            // Check the async buffer usage.
-            if (buffer.Count + length >= target.MaxAsyncBufferSize)
+            // Check the async buffer usage: if the buffer is full, drop the samples.
+            // If dropping was not asked, record the error as well, which stops the reading.
+            if (buffer.Count + length >= MaxAsyncBufferSize)
             {
-                // Throw an exception, if dropping samples was not asked.
-                if (!target.DropSamplesOnFullBuffer)
+                DroppedSamplesCount += (uint)length;
+
+                if (!DropSamplesOnFullBuffer)
                 {
-                    throw new RtlSdrManagedDeviceException(
+                    FailAsyncRead(new RtlSdrManagedDeviceException(
                         "The async buffer of the managed device is full. " +
                         $"Current buffer size: {buffer.Count + length} I/Q samples, " +
-                        $"Maximum buffer size: {target.MaxAsyncBufferSize} I/Q samples, " +
-                        $"Device index: {target.DeviceInfo.Index}.");
+                        $"Maximum buffer size: {MaxAsyncBufferSize} I/Q samples, " +
+                        $"Device index: {DeviceInfo.Index}."));
                 }
 
-                // Drop samples, since the async buffer is full, but increase the counter.
-                target.DroppedSamplesCount += (uint)length;
                 return;
             }
 
@@ -292,11 +328,33 @@ public sealed partial class RtlSdrManagedDevice
             }
 
             // Raise the SampleAvailable event (skip allocation if no subscribers).
-            if (target.SamplesAvailable != null)
+            if (SamplesAvailable != null)
             {
-                target.OnSamplesAvailable(new SamplesAvailableEventArgs(length));
+                OnSamplesAvailable(new SamplesAvailableEventArgs(length));
             }
         }
+    }
+
+    /// <summary>
+    /// Record the first error captured during asynchronous reading.
+    /// Subsequent errors are ignored; the first error wins.
+    /// </summary>
+    /// <param name="ex">The captured error.</param>
+    private void RecordAsyncError(Exception ex) =>
+        Interlocked.CompareExchange(ref _asyncReadException, ex, null);
+
+    /// <summary>
+    /// Record the error and request the asynchronous reading to stop.
+    /// The error is thrown by <see cref="StopReadSamplesAsync"/> and is available
+    /// via <see cref="LastAsyncException"/>.
+    /// </summary>
+    /// <param name="ex">The captured error.</param>
+    private void FailAsyncRead(Exception ex)
+    {
+        RecordAsyncError(ex);
+
+        // Request the reading to stop; best effort, the result is intentionally ignored.
+        _ = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
     }
 
     /// <summary>
@@ -327,6 +385,14 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
     {
+        // Check the worker thread.
+        if (_asyncWorker != null)
+        {
+            throw new RtlSdrLibraryExecutionException(
+                "Problem happened during asynchronous data reading from the device. " +
+                $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
+        }
+
         // Initialize the appropriate buffer based on mode.
         if (UseRawBufferMode)
         {
@@ -348,13 +414,10 @@ public sealed partial class RtlSdrManagedDevice
             _asyncBuffer ??= new ConcurrentQueue<IQData>();
         }
 
-        // Check the worker thread.
-        if (_asyncWorker != null)
-        {
-            throw new RtlSdrLibraryExecutionException(
-                "Problem happened during asynchronous data reading from the device. " +
-                $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
-        }
+        // Set the device context for the native callback. The handle intentionally
+        // roots the device while the reading is active; it is released by
+        // StopReadSamplesAsync after the worker thread has finished.
+        _deviceContext = GCHandle.Alloc(this);
 
         // Start the worker with highest priority.
         _asyncWorker = new Thread(SamplesAsyncReader)
@@ -366,7 +429,11 @@ public sealed partial class RtlSdrManagedDevice
 
     /// <summary>
     /// Stop reading samples from the device.
+    /// If an error was captured during the reading (see <see cref="LastAsyncException"/>),
+    /// it is thrown from here.
     /// </summary>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the reading cannot be stopped.</exception>
+    /// <exception cref="RtlSdrManagedDeviceException">Thrown when an error was captured during the reading.</exception>
     public void StopReadSamplesAsync()
     {
         // Check if the worker thread is running
@@ -375,25 +442,31 @@ public sealed partial class RtlSdrManagedDevice
             return;
         }
 
-        // Cancel the reading with the native function.
-        int returnCode = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
+        // Cancel the reading with the native function. Do not throw on failure here:
+        // the callback may have canceled the reading already (on a captured error),
+        // in which case this request fails although the reading is finished.
+        int cancelReturnCode = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
 
-        // If we did not get 0, there is an error.
-        if (returnCode != 0)
+        // Wait for the worker thread to finish. The join is bounded: if the cancel
+        // request genuinely failed while the device keeps streaming, an unbounded
+        // join would never return. On timeout, keep all state intact (worker, buffers,
+        // device context), so the caller can retry.
+        if (!_asyncWorker.Join(TimeSpan.FromSeconds(5)))
         {
             throw new RtlSdrLibraryExecutionException(
                 "Problem happened during stopping asynchronous data reading. " +
-                $"Error code: {returnCode}, device index: {DeviceInfo.Index}.");
-        }
-
-        // Wait for the worker thread to finish.
-        if (_asyncWorker.ThreadState == ThreadState.Running)
-        {
-            _asyncWorker.Join();
+                "The reading did not stop in time. " +
+                $"Error code: {cancelReturnCode}, device index: {DeviceInfo.Index}.");
         }
 
         // Release the worker.
         _asyncWorker = null;
+
+        // Release the device context handle; the callback can no longer fire.
+        if (_deviceContext.IsAllocated)
+        {
+            _deviceContext.Free();
+        }
 
         // Empty the IQData buffer.
         _asyncBuffer = null;
@@ -407,6 +480,16 @@ public sealed partial class RtlSdrManagedDevice
                 remaining.Return();
             }
             _rawAsyncChannel = null;
+        }
+
+        // If an error was captured during the reading, throw it now.
+        // A nonzero cancel code on an already-finished reading is not an error.
+        Exception? asyncReadException = Interlocked.Exchange(ref _asyncReadException, null);
+        if (asyncReadException != null)
+        {
+            throw new RtlSdrManagedDeviceException(
+                "Problem happened during asynchronous data reading from the device. " +
+                $"Device index: {DeviceInfo.Index}.", asyncReadException);
         }
     }
 

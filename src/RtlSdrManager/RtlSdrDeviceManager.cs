@@ -142,38 +142,41 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     }
 
     /// <summary>
-    /// Enters a suppression scope. If configured, creates or reuses the global suppressor.
+    /// Tries to enter a suppression scope. If configured, creates or reuses the global suppressor.
     /// Uses reference counting to handle nested/parallel scopes safely.
+    /// The configuration flag is read inside the lock and the decision is returned to the
+    /// caller, so a scope which entered always exits exactly once, even if the flag is
+    /// toggled while the scope is active.
     /// </summary>
-    private static void EnterSuppressionScope()
+    /// <returns>True if the scope was entered (and must be exited); otherwise false.</returns>
+    private static bool TryEnterSuppressionScope()
     {
-        if (!_shouldSuppressConsoleOutput)
-        {
-            return;  // Respect configuration flag
-        }
-
         lock (SuppressorLock)
         {
+            if (!_shouldSuppressConsoleOutput)
+            {
+                return false;  // Respect configuration flag
+            }
+
             _suppressionScopeCount++;
             if (_suppressionScopeCount == 1)
             {
                 // First scope: create the global suppressor singleton
                 _globalSuppressor = new ConsoleOutputSuppressor();
             }
+
+            return true;
         }
     }
 
     /// <summary>
     /// Exits a suppression scope. When the last scope exits, disposes the global suppressor.
-    /// Uses reference counting to handle nested/parallel scopes safely.
+    /// Must be called only when the matching TryEnterSuppressionScope returned true;
+    /// it intentionally does not consult the configuration flag, so the reference count
+    /// stays balanced even if the flag is toggled while a scope is active.
     /// </summary>
     private static void ExitSuppressionScope()
     {
-        if (!_shouldSuppressConsoleOutput)
-        {
-            return;  // Respect configuration flag
-        }
-
         lock (SuppressorLock)
         {
             _suppressionScopeCount--;
@@ -189,16 +192,26 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     /// <summary>
     /// Helper class for scoped console output suppression using RAII pattern.
     /// Automatically enters suppression scope on creation and exits on disposal.
+    /// The enter decision is captured at creation, so enter and exit stay paired
+    /// even if SuppressLibraryConsoleOutput is toggled while the scope is active.
     /// Internal visibility allows RtlSdrManagedDevice to use it for property setters.
     /// </summary>
     internal sealed class SuppressionScope : IDisposable
     {
+        private readonly bool _entered;
+
         public SuppressionScope()
         {
-            EnterSuppressionScope();
+            _entered = TryEnterSuppressionScope();
         }
 
-        public void Dispose() => ExitSuppressionScope();
+        public void Dispose()
+        {
+            if (_entered)
+            {
+                ExitSuppressionScope();
+            }
+        }
     }
 
     #endregion

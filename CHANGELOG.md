@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - Unreleased
+
+### Added
+- `LastAsyncException` property on `RtlSdrManagedDevice` to observe errors captured
+  during asynchronous reading without stopping it
+
+### Fixed
+- Async callback no longer throws managed exceptions across the native boundary,
+  which terminated the process (triggered by a full buffer with
+  `DropSamplesOnFullBuffer = false` — the default — or by a throwing
+  `SamplesAvailable` handler); such errors now stop the reading and surface via
+  `StopReadSamplesAsync()` / `LastAsyncException`
+- Device instances no longer hold a strong `GCHandle` self-reference for their whole
+  lifetime; undisposed devices can now be finalized and the USB handle released
+  (the handle now roots the device only while async reading is active)
+- `StopReadSamplesAsync` reliably waits for the worker thread (bounded join) and no
+  longer masks a captured streaming error with a spurious cancel error
+- Toggling `SuppressLibraryConsoleOutput` while an operation is in progress can no
+  longer leave stdout/stderr permanently redirected or corrupt the suppression
+  reference count (the scope now captures the enter decision)
+- `Dispose()` no longer propagates exceptions from stopping async reading
+
 ## [0.6.3] - 2026-06-26
 
 ### Changed

@@ -75,6 +75,9 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
 
     /// <summary>
     /// Device context for async read.
+    /// Allocated by StartReadSamplesAsync and released by StopReadSamplesAsync:
+    /// it intentionally roots the device only while the native callback may use it.
+    /// A permanent handle would prevent the device from ever being finalized.
     /// </summary>
     private GCHandle _deviceContext;
 
@@ -139,9 +142,6 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         // OpenDevice will throw an exception if the device cannot be opened.
         // Console output suppression is managed globally, not per-device
         _deviceHandle = LibRtlSdr.OpenDevice(deviceIndex, suppressConsoleOutput: false);
-
-        // Set the device context.
-        _deviceContext = GCHandle.Alloc(this);
 
         // Set the test mode to disable.
         // Private variable is used for initialization, because this function is
@@ -1074,8 +1074,16 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         if (disposing)
         {
             // Dispose managed resources
-            // Stop async reading if it's running
-            StopReadSamplesAsync();
+            // Stop async reading if it's running. Dispose must not throw: keep the
+            // error observable through LastAsyncException instead.
+            try
+            {
+                StopReadSamplesAsync();
+            }
+            catch (Exception ex)
+            {
+                RecordAsyncError(ex);
+            }
 
             // Dispose the safe handle, which automatically calls rtlsdr_close
             _deviceHandle?.Dispose();
