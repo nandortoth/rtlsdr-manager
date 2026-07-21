@@ -73,6 +73,15 @@ public sealed partial class RtlSdrManagedDevice
     private bool _activeRawBufferMode;
 
     /// <summary>
+    /// True when the current asynchronous reading was asked to stop (by
+    /// StopReadSamplesAsync or by a captured error). Used to tell a requested stop
+    /// apart from the reading stopping on its own: on a requested stop the native
+    /// read can report a nonzero code (canceling already-completed transfers), which
+    /// must not be reported as an error.
+    /// </summary>
+    private volatile bool _stopRequested;
+
+    /// <summary>
     /// Default amount of requested samples from RTL-SDR device.
     /// </summary>
     private const uint AsyncDefaultReadLength = 16384;
@@ -362,6 +371,7 @@ public sealed partial class RtlSdrManagedDevice
         RecordAsyncError(ex);
 
         // Request the reading to stop; best effort, the result is intentionally ignored.
+        _stopRequested = true;
         _ = LibRtlSdr.rtlsdr_cancel_async(_deviceHandle!);
     }
 
@@ -385,10 +395,13 @@ public sealed partial class RtlSdrManagedDevice
         int returnCode = LibRtlSdr.rtlsdr_read_async(_deviceHandle!, _asyncCallback,
             (IntPtr)_deviceContext, 0, (uint)readLength!);
 
-        // A nonzero code means the reading ended on its own (e.g. device failure);
-        // a requested cancel returns zero. Record the error, so it is not lost:
-        // StopReadSamplesAsync throws it, LastAsyncException exposes it.
-        if (returnCode != 0)
+        // A nonzero code only means an error when the reading ended on its own
+        // (e.g. device failure). On a requested stop, librtlsdr reports the last
+        // internal transfer code, which is often nonzero (canceling transfers that
+        // already completed yields -5), so it must be ignored. Record real errors,
+        // so they are not lost: StopReadSamplesAsync throws them,
+        // LastAsyncException exposes them.
+        if (returnCode != 0 && !_stopRequested)
         {
             RecordAsyncError(new RtlSdrLibraryExecutionException(
                 "Problem happened during asynchronous data reading from the device. " +
@@ -434,8 +447,10 @@ public sealed partial class RtlSdrManagedDevice
                 $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
         }
 
-        // Capture the buffer mode for this reading session.
+        // Capture the buffer mode for this reading session, and reset the stop request
+        // of any previous session.
         _activeRawBufferMode = UseRawBufferMode;
+        _stopRequested = false;
 
         // Initialize the appropriate buffer based on mode.
         if (_activeRawBufferMode)
@@ -485,6 +500,10 @@ public sealed partial class RtlSdrManagedDevice
         {
             return;
         }
+
+        // Mark the stop as requested, so the worker does not report the nonzero
+        // native code a requested cancel can produce.
+        _stopRequested = true;
 
         // Cancel the reading with the native function. Do not throw on failure here:
         // the callback may have canceled the reading already (on a captured error),

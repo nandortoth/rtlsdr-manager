@@ -59,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   message (previously the message was misused as the parameter name)
 - Errors from the native asynchronous read (e.g. device failure while streaming) are now
   surfaced via `StopReadSamplesAsync()` / `LastAsyncException` instead of silently ending
-  the streaming
+  the streaming; a requested stop is recognized and is never reported as an error, even
+  though the native read can return a nonzero code on cancellation
 - Changing `UseRawBufferMode` while an asynchronous reading is running no longer crashes
   the native callback; the mode is captured at `StartReadSamplesAsync` and changes take
   effect at the next start
