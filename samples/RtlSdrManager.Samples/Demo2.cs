@@ -124,10 +124,20 @@ public static class Demo2
         // Cancel the tasks.
         cts.Cancel();
 
-        // Stop the reading of the samples.
-        manager["my-rtl-sdr"].StopReadSamplesAsync();
-
-        // Close the device.
-        manager.CloseAllManagedDevice();
+        // Stop the reading of the samples. Since v0.7.0 this rethrows an error that stopped
+        // the reading (e.g. a device failure); always close the device regardless.
+        try
+        {
+            manager["my-rtl-sdr"].StopReadSamplesAsync();
+        }
+        catch (RtlSdrManagedDeviceException e)
+        {
+            Console.WriteLine($"Asynchronous reading stopped with an error: {e.InnerException?.Message}");
+        }
+        finally
+        {
+            // Close the device.
+            manager.CloseAllManagedDevice();
+        }
     }
 }

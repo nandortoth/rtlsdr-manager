@@ -505,7 +505,24 @@ public sealed partial class RtlSdrManagedDevice
             Priority = ThreadPriority.Highest,
             IsBackground = true
         };
-        _asyncWorker.Start(requestedSamples * 2);
+
+        try
+        {
+            _asyncWorker.Start(requestedSamples * 2);
+        }
+        catch
+        {
+            // The worker could not be started (e.g. the OS refused a new thread). Roll back
+            // so no half-initialized session (an unstarted worker plus an allocated GC
+            // handle) lingers to trip StopReadSamplesAsync / Dispose later.
+            _asyncWorker = null;
+            if (_deviceContext.IsAllocated)
+            {
+                _deviceContext.Free();
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
