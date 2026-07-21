@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.0] - Unreleased
+## [0.7.0] - 2026-07-21
 
 ### Added
 - `AsyncReadException` property on `RtlSdrManagedDevice` to observe the error that stopped
@@ -352,6 +352,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |
 | **0.6.2** | 2026-05-24 | Multi-target net9.0 and net10.0 for broader consumer compatibility |
 | **0.6.1** | 2026-03-19 | Native library paths for additional Linux distributions |
@@ -370,6 +371,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Upgrade Notes
+
+### Upgrading to 0.7.0 from 0.6.x
+
+**Breaking changes:**
+
+1. **Target framework is now `net10.0` only.** The `net9.0` target was dropped. Consumers
+   must target .NET 10. (.NET 9 is a Standard Term Support release reaching end of support
+   on 2026-11-10; .NET 10 is the current LTS.)
+
+2. **`RtlSdrDeviceManager.Instance` no longer throws when no device is present.** Detect the
+   absence of devices with `CountDevices` instead of catching an exception:
+
+   ```csharp
+   // Old (0.6.x): construction threw RtlSdrDeviceException with no device present
+   // New (0.7.0):
+   if (RtlSdrDeviceManager.Instance.CountDevices == 0)
+   {
+       // no RTL-SDR device on the system
+   }
+   ```
+
+   The manager also recovers when a device is plugged in after startup — call
+   `RefreshDevices()` to re-enumerate (the previous behavior cached the "no devices" error
+   permanently).
+
+3. **State errors now throw `InvalidOperationException`** (previously
+   `RtlSdrLibraryExecutionException`): reading `AsyncBuffer`, `GetSamplesFromAsyncBuffer`, or
+   `GetRawSamplesFromAsyncBuffer` before `StartReadSamplesAsync`, and using `TunerBandwidth`
+   in automatic mode or `TunerGain` in AGC mode. Update any `catch` clauses accordingly.
+
+4. **`CloseAllManagedDevice()` is now a no-op when no devices are open** (previously threw
+   `InvalidOperationException`).
+
+**Behavior changes to be aware of:**
+
+- **Buffer overflow with `DropSamplesOnFullBuffer = false`** no longer throws from the
+  native callback (which previously crashed the process). The reading stops and the error
+  is thrown from `StopReadSamplesAsync()`; it is also readable via the new
+  `AsyncReadException` property until the next `StartReadSamplesAsync()` resets it.
+
+  ```csharp
+  try
+  {
+      device.StopReadSamplesAsync();
+  }
+  catch (RtlSdrManagedDeviceException ex)
+  {
+      // ex.InnerException is the error that stopped the reading (e.g. buffer overflow)
+  }
+  ```
+
+- **`KerberosSDRMode` is now settable** after opening a device, so the KerberosSDR feature
+  set (`FrequencyDitheringMode`, `SetGPIO`) is reachable. It still cannot be disabled once
+  enabled.
+
+- **`StartReadSamplesAsync` validates its argument:** the requested sample count must be
+  greater than zero and its byte size (`requestedSamples * 2`) must be a multiple of 512.
 
 ### Upgrading to 0.6.0 from 0.5.x
 
@@ -494,6 +552,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.7.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.0
 [0.6.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.3
 [0.6.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.2
 [0.6.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.1
