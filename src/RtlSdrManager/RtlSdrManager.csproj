@@ -29,7 +29,7 @@
         <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <Copyright>Copyright (c) 2018-2025 Nandor Toth</Copyright>
+        <Copyright>Copyright (c) 2018-2026 Nandor Toth</Copyright>
     </PropertyGroup>
 
     <!-- NuGet Package Build Settings -->
