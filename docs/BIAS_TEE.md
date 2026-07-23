@@ -20,12 +20,13 @@ A user has an active antenna or LNA that requires DC power and wants to supply i
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Modes;
 
 var manager = RtlSdrDeviceManager.Instance;
 manager.OpenManagedDevice(0, "my-device");
 
-// Enable bias tee to power active antenna
-manager["my-device"].BiasTeeMode = BiasTeeModes.Enabled;
+// Enable bias tee to power active antenna (GPIO 0)
+manager["my-device"].SetBiasTee(BiasTeeModes.Enabled);
 
 Console.WriteLine("Bias tee enabled - antenna is now powered");
 
@@ -44,7 +45,7 @@ manager["my-device"].StartReadSamplesAsync();
 
 ```csharp
 // Disable bias tee when done or when changing antennas
-manager["my-device"].BiasTeeMode = BiasTeeModes.Disabled;
+manager["my-device"].SetBiasTee(BiasTeeModes.Disabled);
 
 Console.WriteLine("Bias tee disabled - antenna power removed");
 ```
@@ -59,7 +60,7 @@ void UseBiasTee(Action receiveAction)
     try
     {
         // Enable bias tee
-        device.BiasTeeMode = BiasTeeModes.Enabled;
+        device.SetBiasTee(BiasTeeModes.Enabled);
         Console.WriteLine("Bias tee ON");
 
         // Wait for LNA to stabilize
@@ -71,7 +72,7 @@ void UseBiasTee(Action receiveAction)
     finally
     {
         // Always disable bias tee when done
-        device.BiasTeeMode = BiasTeeModes.Disabled;
+        device.SetBiasTee(BiasTeeModes.Disabled);
         Console.WriteLine("Bias tee OFF");
     }
 }
@@ -79,9 +80,9 @@ void UseBiasTee(Action receiveAction)
 // Usage
 UseBiasTee(() =>
 {
-    device.StartReadSamplesAsync();
+    manager["my-device"].StartReadSamplesAsync();
     Thread.Sleep(10000); // Receive for 10 seconds
-    device.StopReadSamplesAsync();
+    manager["my-device"].StopReadSamplesAsync();
 });
 ```
 
@@ -94,11 +95,13 @@ void ConfigureADSBWithLNA()
     var device = manager["adsb-device"];
 
     // Enable bias tee for LNA
-    device.BiasTeeMode = BiasTeeModes.Enabled;
+    device.SetBiasTee(BiasTeeModes.Enabled);
 
-    // Reduce gain since LNA provides amplification
+    // Reduce gain since the LNA provides amplification. Pick a low value from the
+    // tuner's supported gains rather than hardcoding a dB value it may not accept.
     device.TunerGainMode = TunerGainModes.Manual;
-    device.TunerGain = 150; // 15.0 dB (lower than without LNA)
+    var gains = device.SupportedTunerGains;
+    device.TunerGain = gains[gains.Count / 4]; // a lower-end supported gain
 
     device.CenterFrequency = Frequency.FromMHz(1090);
     device.SampleRate = Frequency.FromMHz(2);
@@ -112,7 +115,7 @@ void ConfigureSatelliteReception()
     var device = manager["sat-device"];
 
     // Enable bias tee for active antenna
-    device.BiasTeeMode = BiasTeeModes.Enabled;
+    device.SetBiasTee(BiasTeeModes.Enabled);
 
     device.CenterFrequency = Frequency.FromMHz(137.5); // NOAA satellites
     device.SampleRate = Frequency.FromMHz(2.4);

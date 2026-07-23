@@ -20,6 +20,8 @@ A user has a KerberosSDR (4 coherent RTL-SDR receivers) and wants to perform dir
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Exceptions;
+using RtlSdrManager.Modes;
 
 var manager = RtlSdrDeviceManager.Instance;
 
@@ -28,6 +30,11 @@ for (uint i = 0; i < 4; i++)
 {
     manager.OpenManagedDevice(i, $"kerberos-ch{i}");
 }
+
+// All channels must use an identical gain. Pick one supported value up front
+// (the tuners are identical, so the first channel's list applies to all).
+var supportedGains = manager["kerberos-ch0"].SupportedTunerGains;
+double coherentGain = supportedGains[supportedGains.Count / 2];
 
 // Enable KerberosSDR mode on all channels
 for (int i = 0; i < 4; i++)
@@ -41,7 +48,7 @@ for (int i = 0; i < 4; i++)
     device.CenterFrequency = Frequency.FromMHz(433);
     device.SampleRate = Frequency.FromMHz(2.4);
     device.TunerGainMode = TunerGainModes.Manual;
-    device.TunerGain = 296; // 29.6 dB
+    device.TunerGain = coherentGain; // same supported gain on every channel
     device.AGCMode = AGCModes.Disabled;
 
     // Configure buffer settings
@@ -51,7 +58,7 @@ for (int i = 0; i < 4; i++)
     device.ResetDeviceBuffer();
 }
 
-Console.WriteLine("All 4 KerberosSDR channels configured");
+Console.WriteLine($"All 4 KerberosSDR channels configured at {coherentGain} dB");
 ```
 
 ### Enable Frequency Dithering
@@ -85,42 +92,67 @@ Console.WriteLine("GPIO 1 disabled");
 ### Synchronous Sample Acquisition
 
 ```csharp
-// Start all channels simultaneously for coherent reception
+// Start all channels for coherent reception.
 for (int i = 0; i < 4; i++)
 {
     manager[$"kerberos-ch{i}"].StartReadSamplesAsync();
 }
 
-// Read samples from all channels
-while (true)
-{
-    IQData[] channelData = new IQData[4];
-    bool allChannelsReady = true;
+// Direction finding needs aligned blocks of samples, not single samples, so pull an
+// equal-sized block from every channel before processing.
+const int blockSize = 16 * 1024;
 
+try
+{
+    var stopAt = DateTime.UtcNow.AddSeconds(5);
+    while (DateTime.UtcNow < stopAt)
+    {
+        var channelBlocks = new List<IQData>[4];
+        bool allChannelsReady = true;
+
+        for (int i = 0; i < 4; i++)
+        {
+            channelBlocks[i] = manager[$"kerberos-ch{i}"].GetSamplesFromAsyncBuffer(blockSize);
+            if (channelBlocks[i].Count < blockSize)
+            {
+                allChannelsReady = false;
+                break;
+            }
+        }
+
+        if (allChannelsReady)
+        {
+            // Process coherent data from all 4 channels
+            ProcessCoherentSamples(channelBlocks);
+        }
+        else
+        {
+            Thread.Sleep(10);
+        }
+    }
+}
+finally
+{
+    // Stop every channel, then release all devices.
     for (int i = 0; i < 4; i++)
     {
-        if (!manager[$"kerberos-ch{i}"].AsyncBuffer.TryDequeue(out channelData[i]))
+        try
         {
-            allChannelsReady = false;
-            break;
+            manager[$"kerberos-ch{i}"].StopReadSamplesAsync();
+        }
+        catch (RtlSdrManagedDeviceException e)
+        {
+            Console.WriteLine($"Channel {i} stopped with an error: {e.InnerException?.Message}");
         }
     }
 
-    if (allChannelsReady)
-    {
-        // Process coherent data from all 4 channels
-        ProcessCoherentSamples(channelData);
-    }
-    else
-    {
-        Thread.Sleep(10);
-    }
+    manager.CloseAllManagedDevice();
 }
 
-void ProcessCoherentSamples(IQData[] samples)
+void ProcessCoherentSamples(List<IQData>[] channels)
 {
-    // Implement direction finding or beamforming algorithm here
-    Console.WriteLine($"Processing one sample from {samples.Length} channels");
+    // Implement direction finding or beamforming across the aligned blocks here.
+    Console.WriteLine($"Processing {channels[0].Count} samples across {channels.Length} channels");
 }
 ```
 

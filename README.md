@@ -148,10 +148,11 @@ device.SamplesAvailable += (sender, args) =>
 // Option 2: Manual polling (for custom processing logic)
 while (running)
 {
-    if (device.AsyncBuffer.TryDequeue(out var data))
+    var samples = device.GetSamplesFromAsyncBuffer(16 * 1024);
+    if (samples.Count > 0)
     {
-        // Process data
-        Console.WriteLine($"Received {data.Samples.Length} samples");
+        // Process the batch of I/Q samples
+        Console.WriteLine($"Received {samples.Count} samples");
     }
     else
     {
@@ -266,10 +267,10 @@ device.SetBiasTeeGPIO(gpio: 0, BiasTeeModes.Enabled);
 
 ```csharp
 // Enable direct sampling on I-ADC
-device.DirectSamplingMode = DirectSamplingModes.I_ADC;
+device.DirectSamplingMode = DirectSamplingModes.InPhaseADCInputEnabled;
 
 // Or on Q-ADC
-device.DirectSamplingMode = DirectSamplingModes.Q_ADC;
+device.DirectSamplingMode = DirectSamplingModes.QuadratureADCInputEnabled;
 
 // Disable
 device.DirectSamplingMode = DirectSamplingModes.Disabled;
@@ -335,7 +336,7 @@ cd rtlsdr-manager
 # Build the entire solution
 dotnet build
 
-# Run tests (if available)
+# Run the test suite
 dotnet test
 
 # Create NuGet packages
@@ -373,6 +374,8 @@ rtlsdr-manager/
 │       ├── Hardware/            # Hardware type definitions
 │       ├── Interop/             # P/Invoke wrappers
 │       └── Modes/               # Enumeration types
+├── tests/
+│   └── RtlSdrManager.Tests/     # xUnit test suite
 ├── samples/
 │   └── RtlSdrManager.Samples/   # Example applications
 └── docs/                        # Documentation

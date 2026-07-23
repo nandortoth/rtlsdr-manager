@@ -19,11 +19,12 @@ A system has multiple RTL-SDR devices connected and needs to identify, configure
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Modes;
 
 var manager = RtlSdrDeviceManager.Instance;
 
 // Get total number of connected devices
-var deviceCount = manager.Count;
+var deviceCount = manager.CountDevices;
 Console.WriteLine($"Found {deviceCount} RTL-SDR device(s)");
 
 if (deviceCount == 0)
@@ -32,14 +33,13 @@ if (deviceCount == 0)
     return;
 }
 
-// Enumerate all devices and show their information
-for (uint i = 0; i < deviceCount; i++)
+// Enumerate all devices and show their information.
+// Devices is a Dictionary<uint, DeviceInfo> keyed by device index.
+foreach (var (index, deviceInfo) in manager.Devices)
 {
-    var deviceInfo = manager.GetDeviceInfo(i);
-
-    Console.WriteLine($"\nDevice {i}:");
+    Console.WriteLine($"\nDevice {index}:");
     Console.WriteLine($"  Manufacturer: {deviceInfo.Manufacturer}");
-    Console.WriteLine($"  Product: {deviceInfo.Product}");
+    Console.WriteLine($"  Product: {deviceInfo.ProductType}");
     Console.WriteLine($"  Serial: {deviceInfo.Serial}");
 }
 ```
@@ -56,12 +56,11 @@ if (deviceCount >= 2)
     Console.WriteLine("Opened 2 devices with friendly names");
 }
 
-// List all open devices
-var openDevices = manager.GetManagedDeviceNames();
-Console.WriteLine("\nOpen devices:");
-foreach (var name in openDevices)
+// The manager is enumerable over its managed (open) devices.
+Console.WriteLine($"\nOpen devices: {manager.CountManagedDevices}");
+foreach (var device in manager)
 {
-    Console.WriteLine($"  - {name}");
+    Console.WriteLine($"  - {device.DeviceInfo.Name} (serial {device.DeviceInfo.Serial})");
 }
 ```
 
@@ -80,7 +79,8 @@ var fmDevice = manager["fm-radio"];
 fmDevice.CenterFrequency = Frequency.FromMHz(100);
 fmDevice.SampleRate = Frequency.FromMHz(1.2);
 fmDevice.TunerGainMode = TunerGainModes.Manual;
-fmDevice.TunerGain = 200; // 20.0 dB
+var fmGains = fmDevice.SupportedTunerGains;
+fmDevice.TunerGain = fmGains[fmGains.Count / 2]; // dB, chosen from the supported list
 
 Console.WriteLine("Both devices configured for different applications");
 ```
@@ -88,20 +88,19 @@ Console.WriteLine("Both devices configured for different applications");
 ### Checking Device Capabilities
 
 ```csharp
-void DisplayDeviceCapabilities(string deviceName)
+void DisplayDeviceCapabilities(RtlSdrManagedDevice device)
 {
-    var device = manager[deviceName];
-
-    Console.WriteLine($"\n{deviceName} Capabilities:");
+    // SupportedTunerGains is already expressed in dB.
+    Console.WriteLine($"\n{device.DeviceInfo.Name} Capabilities:");
     Console.WriteLine($"  Tuner Type: {device.TunerType}");
-    Console.WriteLine($"  Available Gains: {string.Join(", ", device.TunerGains.Select(g => $"{g * 0.1:F1} dB"))}");
+    Console.WriteLine($"  Available Gains: {string.Join(", ", device.SupportedTunerGains.Select(g => $"{g:F1} dB"))}");
     Console.WriteLine($"  Current Frequency: {device.CenterFrequency}");
     Console.WriteLine($"  Current Sample Rate: {device.SampleRate}");
 }
 
-foreach (var deviceName in manager.GetManagedDeviceNames())
+foreach (var device in manager)
 {
-    DisplayDeviceCapabilities(deviceName);
+    DisplayDeviceCapabilities(device);
 }
 ```
 
@@ -113,7 +112,7 @@ manager.CloseManagedDevice("adsb-receiver");
 Console.WriteLine("Closed adsb-receiver device");
 
 // Close all devices
-manager.CloseAllManagedDevices();
+manager.CloseAllManagedDevice();
 Console.WriteLine("All devices closed");
 ```
 
@@ -123,12 +122,11 @@ Console.WriteLine("All devices closed");
 // Find device with specific serial number
 uint? FindDeviceBySerial(string serial)
 {
-    for (uint i = 0; i < manager.Count; i++)
+    foreach (var (index, info) in manager.Devices)
     {
-        var info = manager.GetDeviceInfo(i);
         if (info.Serial == serial)
         {
-            return i;
+            return index;
         }
     }
     return null;
@@ -159,7 +157,7 @@ else
 
 - Device indices are 0-based.
 - Friendly names make device management more intuitive than using numeric indices.
-- `DeviceInfo` provides manufacturer, product, and serial number.
+- `DeviceInfo` provides the device index, name, manufacturer, product type, and serial number.
 - Each device operates independently with its own buffer.
 - Closing devices properly releases hardware resources.
 

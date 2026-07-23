@@ -91,7 +91,7 @@ device.CenterFrequency = Frequency.FromMHz(1090);   // Silent
 // Disable suppression for troubleshooting
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
 device.SampleRate = Frequency.FromMHz(2.4);          // Shows librtlsdr output
-device.TunerGain = 40.0;                             // Shows librtlsdr output
+device.CenterFrequency = Frequency.FromMHz(1090);    // Shows librtlsdr output
 
 // Re-enable suppression
 RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;

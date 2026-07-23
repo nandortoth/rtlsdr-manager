@@ -17,12 +17,14 @@ A developer wants to start capturing radio signals at a specific frequency (e.g.
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Exceptions;
+using RtlSdrManager.Modes;
 
 // Initialize the manager instance
 var manager = RtlSdrDeviceManager.Instance;
 
 // Check if any devices are available
-var deviceCount = manager.Count;
+var deviceCount = manager.CountDevices;
 if (deviceCount == 0)
 {
     Console.WriteLine("No RTL-SDR devices found");
@@ -46,17 +48,40 @@ manager["my-rtl-sdr"].ResetDeviceBuffer();
 // Start asynchronous sample reading
 manager["my-rtl-sdr"].StartReadSamplesAsync();
 
-// Read samples from the buffer
-while (true)
+// Read samples for a bounded period, then always stop and release the device.
+try
 {
-    if (manager["my-rtl-sdr"].AsyncBuffer.TryDequeue(out var data))
+    var stopAt = DateTime.UtcNow.AddSeconds(5);
+    while (DateTime.UtcNow < stopAt)
     {
-        Console.WriteLine($"Received {data.Length} samples");
-        // Process the IQ data here
+        // Dequeue a batch of I/Q samples (returns an empty list when none are ready)
+        var samples = manager["my-rtl-sdr"].GetSamplesFromAsyncBuffer(16 * 1024);
+        if (samples.Count > 0)
+        {
+            Console.WriteLine($"Received {samples.Count} samples");
+            // Process the I/Q data here (each sample exposes .I and .Q)
+        }
+        else
+        {
+            Thread.Sleep(100);
+        }
     }
-    else
+}
+finally
+{
+    // Since v0.7.0, StopReadSamplesAsync rethrows any error that stopped the reading
+    // (for example a device failure). Always close the device regardless.
+    try
     {
-        Thread.Sleep(100);
+        manager["my-rtl-sdr"].StopReadSamplesAsync();
+    }
+    catch (RtlSdrManagedDeviceException e)
+    {
+        Console.WriteLine($"Asynchronous reading stopped with an error: {e.InnerException?.Message}");
+    }
+    finally
+    {
+        manager.CloseManagedDevice("my-rtl-sdr");
     }
 }
 ```
@@ -64,14 +89,15 @@ while (true)
 ## Expected Results
 
 - Device initializes successfully.
-- Samples are continuously read from the device.
+- Samples are read from the device for the bounded period, then reading stops cleanly.
 - Buffer manages data flow automatically.
 - AGC adjusts gain levels automatically.
 
 ## Notes
 
 - The `DropSamplesOnFullBuffer` setting prevents buffer overflow by dropping old samples when the buffer is full.
-- Async reading runs in a background thread.
+- Async reading runs in a background thread, so always stop it with `StopReadSamplesAsync()` and release the device with `CloseManagedDevice(...)` (or `Dispose()`) when finished.
+- `StopReadSamplesAsync()` rethrows any error that stopped the reading; wrap it so cleanup still runs.
 - A sample rate of 2 MHz provides good coverage for most applications.
 
 ## See Also

@@ -17,6 +17,7 @@ A user needs precise control over the tuner gain to avoid saturation from strong
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Modes;
 
 var manager = RtlSdrDeviceManager.Instance;
 manager.OpenManagedDevice(0, "my-device");
@@ -25,42 +26,47 @@ manager.OpenManagedDevice(0, "my-device");
 manager["my-device"].TunerGainMode = TunerGainModes.Manual;
 manager["my-device"].AGCMode = AGCModes.Disabled;
 
-// Get available gain values for this tuner
-var availableGains = manager["my-device"].TunerGains;
+// Get available gain values for this tuner (values are in dB)
+var availableGains = manager["my-device"].SupportedTunerGains;
 Console.WriteLine("Available gain values:");
 foreach (var gain in availableGains)
 {
-    Console.WriteLine($"  {gain} (units of 0.1 dB)");
+    Console.WriteLine($"  {gain:F1} dB");
 }
 
-// Set specific gain value (e.g., 296 = 29.6 dB)
-manager["my-device"].TunerGain = 296;
+// Set a specific gain in dB. The value must be exactly one of SupportedTunerGains,
+// so pick from that list rather than hardcoding a value the tuner may not support.
+manager["my-device"].TunerGain = availableGains[availableGains.Count / 2];
+
+// Convenience helpers set the extremes of the supported range:
+//   manager["my-device"].SetMaximumTunerGain();
+//   manager["my-device"].SetMinimumTunerGain();
 
 // Configure other parameters
 manager["my-device"].CenterFrequency = Frequency.FromMHz(100);
 manager["my-device"].SampleRate = Frequency.FromMHz(2);
 
-// Start receiving
+// Start receiving. Reading stays active for the gain sweep in the next section.
 manager["my-device"].ResetDeviceBuffer();
 manager["my-device"].StartReadSamplesAsync();
-
-Console.WriteLine($"Device configured with manual gain: {manager["my-device"].TunerGain * 0.1} dB");
+Console.WriteLine($"Device configured with manual gain: {manager["my-device"].TunerGain} dB");
 ```
 
 ## Testing Different Gain Values
 
 ```csharp
-// Function to test different gain settings
-void TestGainSetting(int gainValue)
+// Function to test different gain settings (gain is in dB)
+void TestGainSetting(double gainValue)
 {
     manager["my-device"].TunerGain = gainValue;
     Thread.Sleep(1000); // Let it stabilize
 
     // Read some samples and check signal strength
-    if (manager["my-device"].AsyncBuffer.TryDequeue(out var data))
+    var data = manager["my-device"].GetSamplesFromAsyncBuffer(4096);
+    if (data.Count > 0)
     {
         // Analyze signal strength here
-        Console.WriteLine($"Gain {gainValue * 0.1} dB - Sample count: {data.Length}");
+        Console.WriteLine($"Gain {gainValue:F1} dB - Sample count: {data.Count}");
     }
 }
 
@@ -69,6 +75,12 @@ foreach (var gain in availableGains)
 {
     TestGainSetting(gain);
 }
+
+// Stop reading and release the device once the sweep is complete.
+// StopReadSamplesAsync may rethrow a captured async error; see Basic Setup for the
+// full try/finally pattern.
+manager["my-device"].StopReadSamplesAsync();
+manager.CloseManagedDevice("my-device");
 ```
 
 ## Expected Results
@@ -80,7 +92,7 @@ foreach (var gain in availableGains)
 
 ## Notes
 
-- Gain values are in tenths of dB (e.g., 296 = 29.6 dB).
+- Gain values are in dB (e.g., 29.6 dB); `SupportedTunerGains` lists the exact values the tuner accepts, and setting an unsupported value throws.
 - Too high a gain can cause saturation and distortion.
 - Too low a gain reduces sensitivity to weak signals.
 - Optimal gain depends on signal strength and interference levels.

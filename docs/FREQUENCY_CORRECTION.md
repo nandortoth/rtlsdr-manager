@@ -20,6 +20,7 @@ A user notices that received frequencies are slightly off from expected values a
 
 ```csharp
 using RtlSdrManager;
+using RtlSdrManager.Modes;
 
 var manager = RtlSdrDeviceManager.Instance;
 manager.OpenManagedDevice(0, "my-device");
@@ -54,6 +55,9 @@ void CalibrateDevice(string deviceName, double knownFrequencyMHz)
     device.ResetDeviceBuffer();
     device.StartReadSamplesAsync();
 
+    // Reading stays active so you can observe the signal. Call
+    // device.StopReadSamplesAsync() and manager.CloseManagedDevice(deviceName)
+    // once you have finished measuring.
     Console.WriteLine("Listen to the signal and measure the frequency offset");
     Console.WriteLine("Then calculate PPM = (measured_freq - actual_freq) / actual_freq * 1,000,000");
     Console.WriteLine("\nExample: If 100.0 MHz signal appears at 100.005 MHz:");
@@ -114,41 +118,18 @@ VerifyCalibration("my-device", 100.0, 145.0, 433.0, 1090.0);
 
 ### Temperature Compensation
 
-```csharp
-// Store PPM values at different temperatures
-Dictionary<double, int> temperaturePPM = new Dictionary<double, int>
-{
-    { 20.0, 52 },  // Room temperature
-    { 30.0, 48 },  // Warm
-    { 15.0, 56 }   // Cool
-};
-
-void ApplyTemperatureCompensation(string deviceName, double currentTemp)
-{
-    var device = manager[deviceName];
-
-    // Find closest temperature measurement
-    var closestTemp = temperaturePPM.Keys
-        .OrderBy(t => Math.Abs(t - currentTemp))
-        .First();
-
-    device.FrequencyCorrection = temperaturePPM[closestTemp];
-
-    Console.WriteLine($"Applied PPM correction for {closestTemp}C: {device.FrequencyCorrection} PPM");
-}
-```
+Crystal drift is temperature dependent, so the ideal PPM value changes as the device warms up or the ambient temperature shifts. The library exposes this through the single `FrequencyCorrection` property — reapply an appropriate value as conditions change. Maintaining a temperature-to-PPM table and choosing the closest entry is straightforward application logic on top of that property.
 
 ### Crystal Frequency Information
 
 ```csharp
-// Get crystal frequencies (RTL2832 and tuner IC)
+// Get crystal frequencies (RTL2832 and tuner IC).
+// CrystalFrequency exposes both clocks as a single record.
 var device = manager["my-device"];
+var crystal = device.CrystalFrequency;
 
-var rtlFreq = device.CrystalFrequency;
-Console.WriteLine($"RTL2832 Crystal Frequency: {rtlFreq.Hz} Hz");
-
-var tunerFreq = device.TunerCrystalFrequency;
-Console.WriteLine($"Tuner Crystal Frequency: {tunerFreq.Hz} Hz");
+Console.WriteLine($"RTL2832 Crystal Frequency: {crystal.Rtl2832Frequency.Hz} Hz");
+Console.WriteLine($"Tuner Crystal Frequency: {crystal.TunerFrequency.Hz} Hz");
 
 // Note: These are nominal values and do not reflect actual accuracy
 ```
