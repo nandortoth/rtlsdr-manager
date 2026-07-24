@@ -99,9 +99,13 @@ finally
 - Async reading runs in a background thread, so always stop it with `StopReadSamplesAsync()` and release the device with `CloseManagedDevice(...)` (or `Dispose()`) when finished.
 - `StopReadSamplesAsync()` rethrows any error that stopped the reading; wrap it so cleanup still runs.
 - A sample rate of 2 MHz provides good coverage for most applications.
+- This example uses the default per-sample delivery mode (`IQData` via `GetSamplesFromAsyncBuffer`).
+  Processing at high sample rates? See [Raw Buffer Mode](../README.md#raw-buffer-mode-zero-copy)
+  to avoid per-sample overhead by consuming pooled byte buffers directly.
 
 ## See Also
 
+- [Raw Buffer Mode](../README.md#raw-buffer-mode-zero-copy) — Zero-copy delivery for high-throughput reading
 - [Device Management](DEVICE_MANAGEMENT.md) — Managing multiple RTL-SDR devices
 - [Manual Gain Control](MANUAL_GAIN_CONTROL.md) — Configuring tuner gain settings
 - [Main README](../README.md) — Library overview and features

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-24
+
+### Changed
+- `IQData` stores its I/Q components as two `byte` fields internally (2 bytes per sample
+  instead of 8) to match the RTL2832U's unsigned 8-bit output. The `I` and `Q` accessors
+  remain `int` and record semantics (value equality, `with`, deconstruction) are preserved,
+  so this is **not** a breaking change. Memory footprint drops ~4x for the `List<IQData>`
+  returned by `ReadSamples` and ~2x for the async `ConcurrentQueue<IQData>` buffer (the
+  queue's per-slot bookkeeping caps the async win at ~2x)
+
 ## [0.7.0] - 2026-07-21
 
 ### Added
@@ -352,6 +362,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |
 | **0.6.2** | 2026-05-24 | Multi-target net9.0 and net10.0 for broader consumer compatibility |
@@ -552,6 +563,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.7.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.1
 [0.7.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.0
 [0.6.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.3
 [0.6.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.2

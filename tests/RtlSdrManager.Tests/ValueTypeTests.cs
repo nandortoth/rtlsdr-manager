@@ -57,6 +57,44 @@ public class ValueTypeTests
     }
 
     [Fact]
+    public void IQData_PreservesFullByteRange()
+    {
+        // The full unsigned 8-bit device range must round-trip through the byte storage.
+        var low = new IQData(0, 0);
+        var high = new IQData(255, 255);
+
+        Assert.Equal(0, low.I);
+        Assert.Equal(0, low.Q);
+        Assert.Equal(255, high.I);
+        Assert.Equal(255, high.Q);
+    }
+
+    [Fact]
+    public void IQData_RecordEquality_ByValue()
+    {
+        var first = new IQData(12, 200);
+        var second = new IQData(12, 200);
+
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+    }
+
+    [Fact]
+    public void IQData_SupportsWithAndDeconstruction()
+    {
+        var data = new IQData(10, 20);
+
+        var updated = data with { I = 42 };
+        Assert.Equal(42, updated.I);
+        Assert.Equal(20, updated.Q);
+
+        var (i, q) = updated;
+        Assert.Equal(42, i);
+        Assert.Equal(20, q);
+    }
+
+    [Fact]
     public void DeviceInfo_RecordEquality_ByValue()
     {
         var first = new DeviceInfo(0, "0001", "Realtek", "RTL2838UHIDIR", "Generic RTL2832U OEM");

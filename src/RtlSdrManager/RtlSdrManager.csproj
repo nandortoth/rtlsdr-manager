@@ -9,9 +9,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.7.0</Version>
-        <FileVersion>0.7.0.0</FileVersion>
-        <AssemblyVersion>0.7.0.0</AssemblyVersion>
+        <Version>0.7.1</Version>
+        <FileVersion>0.7.1.0</FileVersion>
+        <AssemblyVersion>0.7.1.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -45,6 +45,13 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
+            v0.7.1 (2026-07-24):
+
+            CHANGED:
+            - IQData now stores its I/Q components as bytes internally (2 bytes per sample instead of 8);
+              the int I/Q accessors are unchanged, so this is not a breaking change. Cuts memory ~4x for
+              ReadSamples lists and ~2x for the async ConcurrentQueue buffer.
+
             v0.7.0 (2026-07-21):
 
             BREAKING:

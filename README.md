@@ -39,7 +39,7 @@ dotnet add package RtlSdrManager
 Install-Package RtlSdrManager
 
 # PackageReference (in .csproj)
-<PackageReference Include="RtlSdrManager" Version="0.7.0" />
+<PackageReference Include="RtlSdrManager" Version="0.7.1" />
 ```
 
 ### Prerequisites
@@ -171,6 +171,24 @@ manager.CloseManagedDevice("my-rtl-sdr");
 
 For high-throughput applications, raw buffer mode eliminates per-sample object allocation by
 delivering raw byte buffers directly from the native callback via `ArrayPool<byte>`:
+
+#### Choosing a read mode
+
+Asynchronous reading offers two delivery modes, selected by `UseRawBufferMode` (default `false`).
+The mode is captured once when `StartReadSamplesAsync` is called, so set it beforehand; toggling
+it mid-stream has no effect until the next start.
+
+|                         | Default (`UseRawBufferMode = false`)                      | Raw buffer mode (`UseRawBufferMode = true`)       |
+|-------------------------|-----------------------------------------------------------|---------------------------------------------------|
+| **Delivery**            | per-sample `IQData` structs via `ConcurrentQueue<IQData>` | pooled `byte[]` buffers via `Channel`             |
+| **Consume with**        | `GetSamplesFromAsyncBuffer(...)` → `.I` / `.Q`            | `GetRawSamplesFromAsyncBuffer()` → raw bytes      |
+| **Ease of use**         | high — no buffer lifetime to manage                       | manual — must call `buffer.Return()` exactly once |
+| **Per-sample overhead** | enqueue/dequeue + per-slot bookkeeping                    | none (one `memcpy` per buffer)                    |
+| **Best for**            | moderate sample rates, simplicity                         | high sample rates, minimal GC pressure            |
+
+Since v0.7.1 the default mode stores each `IQData` as two bytes internally (the `.I` / `.Q`
+accessors stay `int`), so it is already compact; raw buffer mode remains the choice when you
+want to avoid per-sample handling entirely.
 
 ```csharp
 // Enable raw buffer mode before starting async reading
