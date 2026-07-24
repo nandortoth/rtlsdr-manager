@@ -52,26 +52,7 @@
               the int I/Q accessors are unchanged, so this is not a breaking change. Cuts memory ~4x for
               ReadSamples lists and ~2x for the async ConcurrentQueue buffer.
 
-            v0.7.0 (2026-07-21):
-
-            BREAKING:
-            - Target framework is net10.0 only (dropped net9.0)
-            - RtlSdrDeviceManager.Instance no longer throws when no device is present (check CountDevices)
-            - State errors throw InvalidOperationException instead of RtlSdrLibraryExecutionException
-            - CloseAllManagedDevice() is a no-op when no devices are open
-
-            FIXED:
-            - Async callback no longer throws across the native boundary (previously crashed the process)
-            - Device instances no longer hold a permanent GCHandle self-reference (USB handle can be released)
-            - Reliable, safe async stop/dispose; requested stops are not reported as errors
-            - Console-suppression scope pairing no longer leaks stdout/stderr redirection
-            - ArgumentOutOfRangeException from device setters now carries a proper ParamName
-
-            ADDED:
-            - AsyncReadException property, RefreshDevices(), XML documentation in the package
-            - KerberosSDRMode is now settable; unit test project
-
-            See CHANGELOG.md for complete details.
+            See CHANGELOG.md for complete details and previous releases.
         </PackageReleaseNotes>
     </PropertyGroup>
 
