@@ -10,6 +10,7 @@ Thank you for your interest in contributing to RTL-SDR Manager! This document pr
 - [How to Contribute](#how-to-contribute)
 - [Coding Standards](#coding-standards)
 - [Pull Request Process](#pull-request-process)
+- [Publishing Releases](#publishing-releases)
 - [Reporting Bugs](#reporting-bugs)
 - [Suggesting Features](#suggesting-features)
 
@@ -358,6 +359,43 @@ Include in your PR description:
 2. Feedback may be provided — please address review comments.
 3. Once approved, a maintainer will merge your PR.
 4. Your contribution will be included in the next release.
+
+## Publishing Releases
+
+> **Note:** Publishing to [NuGet.org](https://www.nuget.org/packages/RtlSdrManager) is a maintainer task and requires a NuGet API key with push rights for the `RtlSdrManager` package.
+
+### Release Steps
+
+1. **Bump the version** in `src/RtlSdrManager/RtlSdrManager.csproj` (`<Version>`, keeping `<FileVersion>` and `<AssemblyVersion>` in sync).
+2. **Update `CHANGELOG.md`** with the changes for the new version.
+3. **Build the packages** — this cleans `artifacts/` and produces the `.nupkg` and `.snupkg`:
+   ```bash
+   ./build.sh
+   ```
+4. **Publish to NuGet.org:**
+   ```bash
+   ./publish.sh
+   ```
+   The script lists the packages found in `artifacts/packages/`, asks for confirmation, then pushes. Pushing the `.nupkg` automatically publishes the paired `.snupkg` symbol package — you do not push it separately.
+5. **Create a [GitHub release](https://github.com/nandortoth/rtlsdr-manager/releases)** for the new version — publishing the release creates the git tag.
+
+### API Key Resolution
+
+`publish.sh` resolves the NuGet API key in this order:
+
+1. `--api-key <key>` — an explicit key for that run only.
+2. **macOS Keychain** — service `nuget.org`, account `rtlsdr-manager-publish` (macOS only).
+3. `NUGET_API_KEY` — environment variable.
+
+If none is found, the script prompts for the key and offers to save it to the macOS Keychain (recommended) or use it just for the current run. Create a key at [nuget.org/account/apikeys](https://www.nuget.org/account/apikeys); scope it to the `RtlSdrManager` package with push permission.
+
+```bash
+# Publish with an explicit key (e.g. in a non-interactive shell)
+./publish.sh --api-key <key>
+
+# Show all options
+./publish.sh --help
+```
 
 ## Reporting Bugs
 
