@@ -44,7 +44,11 @@ Install-Package RtlSdrManager
 
 ### Prerequisites
 
-The `librtlsdr` native library must be installed on the system:
+The `librtlsdr` native library must be installed on the system. Any 2.x release works,
+but **2.0.3 or later is recommended**: earlier versions can block indefinitely inside the
+native reader when a device is unplugged during an asynchronous reading, so the failure
+surfaces as a stop timeout from `StopReadSamplesAsync()` rather than as the underlying
+error (see [Asynchronous Sample Reading](#asynchronous-sample-reading)).
 
 **Windows:**
 ```powershell
@@ -166,6 +170,17 @@ device.StopReadSamplesAsync();
 // Clean up
 manager.CloseManagedDevice("my-rtl-sdr");
 ```
+
+If the reading stops on its own — a full buffer with `DropSamplesOnFullBuffer` disabled, a
+throwing `SamplesAvailable` handler, or a device failure — the error is captured and
+rethrown by `StopReadSamplesAsync()`, and stays observable via `AsyncReadException` until
+the next `StartReadSamplesAsync()`.
+
+Unplugging a device mid-reading belongs to that last case, but how it surfaces depends on
+the native library. With librtlsdr 2.0.3 or later, the native reader returns promptly and
+you get the underlying error. With earlier versions it can block indefinitely instead, and
+`StopReadSamplesAsync()` gives up after five seconds with a stop-timeout error — the device
+is then left untouched on purpose, so no native callback runs against freed state.
 
 ### Raw Buffer Mode (Zero-Copy)
 
@@ -404,7 +419,7 @@ rtlsdr-manager/
 - **.NET Runtime** — 10.0 or later
 - **Operating System** — Windows, Linux, macOS
 - **Hardware** — RTL-SDR compatible device (RTL2832U-based)
-- **Native Library** — librtlsdr installed on the system
+- **Native Library** — librtlsdr installed on the system (2.x; 2.0.3 or later recommended)
 
 ## Supported Devices
 

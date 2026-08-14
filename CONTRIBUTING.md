@@ -26,7 +26,7 @@ Before you begin, ensure you have the following installed:
 
 - **.NET 10.0 SDK or later** — [Download here](https://dotnet.microsoft.com/download)
 - **Git** — Version control system
-- **librtlsdr** — Native RTL-SDR library for your platform
+- **librtlsdr** — Native RTL-SDR library for your platform (2.x; 2.0.3 or later recommended)
   - **Windows:** `choco install rtl-sdr` or download from [releases](https://github.com/osmocom/rtl-sdr/releases)
   - **Linux:** `sudo apt-get install librtlsdr-dev`
   - **macOS:** `brew install librtlsdr`
