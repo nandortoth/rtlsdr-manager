@@ -63,17 +63,46 @@ manager["hf-receiver"].CenterFrequency = Frequency.FromMHz(145); // 2m band
 
 ### Frequency Coverage
 
-```csharp
-// Direct sampling mode typically covers:
-// - Long Wave: 30 kHz - 300 kHz
-// - Medium Wave: 300 kHz - 3 MHz
-// - Short Wave: 3 MHz - 30 MHz
+Direct sampling reaches **0 Hz up to half the RTL2832U's crystal frequency**, which is
+14.4 MHz on the usual 28.8 MHz crystal. That covers:
 
-// Example: Receiving AM broadcast band
-manager["hf-receiver"].DirectSamplingMode = DirectSamplingModes.QuadratureADCInputEnabled;
-manager["hf-receiver"].CenterFrequency = Frequency.FromKHz(1000); // 1 MHz MW
-manager["hf-receiver"].SampleRate = Frequency.FromMHz(2);
+- Long Wave: 30 kHz -- 300 kHz
+- Medium Wave: 300 kHz -- 3 MHz
+- Short Wave: 3 MHz -- 14.4 MHz, including the 160 m, 80 m, 60 m, 40 m, 30 m and 20 m
+  amateur bands
+
+Ask the device rather than assuming, since the crystal is adjustable and frequency
+correction is applied to it:
+
+```csharp
+var device = manager["hf-receiver"];
+device.DirectSamplingMode = DirectSamplingModes.QuadratureADCInputEnabled;
+
+// Reports the ADC's range while direct sampling is active, the tuner's otherwise
+Console.WriteLine($"Reachable: {string.Join(" and ", device.SupportedFrequencyRanges)}");
+
+// Example: receiving the AM broadcast band
+device.CenterFrequency = Frequency.FromKHz(1000); // 1 MHz MW
+device.SampleRate = Frequency.FromMHz(2);
 ```
+
+### Above the limit: aliasing
+
+The ADC samples at the crystal frequency, so 14.4 MHz is its first Nyquist zone. Signals
+above it are still receivable, but they fold down rather than being tuned to directly:
+subtract the wanted frequency from the crystal frequency.
+
+```csharp
+// Receiving 21.2 MHz (15 m band) on a 28.8 MHz crystal: 28.8 - 21.2 = 7.6 MHz
+device.CenterFrequency = Frequency.FromMHz(7.6);
+```
+
+Asking for 21.2 MHz directly throws `ArgumentOutOfRangeException`. That check matters: the
+value is written into a 22-bit register, so without it the frequency would be truncated and
+the device would quietly receive something else with no error anywhere.
+
+Expect aliased reception to be weaker, and note that signals from both zones land on top of
+each other unless the antenna or an external filter separates them.
 
 ### Stopping and Cleanup
 
@@ -94,8 +123,9 @@ manager.CloseManagedDevice("hf-receiver");
 
 ## Notes
 
-- **Center frequency validation:** The `CenterFrequency` setter currently validates the value against the tuner's normal operating range (e.g. 24–1766 MHz for the R820T) regardless of the direct sampling mode. As a result, setting an HF frequency below that range (such as the 14.2 MHz and 1 MHz values above) throws an `ArgumentOutOfRangeException` on those tuners. The examples above show the intended workflow; until the range check accounts for direct sampling, choose a center frequency within the tuner's supported range or adjust the library's validation accordingly.
 - Direct sampling bypasses the tuner chip entirely.
+- **Enable direct sampling before setting the center frequency.** Switching mode re-applies the current frequency through the path being entered, and a VHF or UHF frequency is meaningless to the ADC. Turning direct sampling on therefore resets the center frequency to 0 Hz whenever the previous one is out of the ADC's reach.
+- Turning direct sampling back off re-applies the current frequency to the tuner, which fails if it is an HF frequency only the ADC could reach. The mode still changes; set a frequency the tuner supports afterwards.
 - I-ADC and Q-ADC inputs may have different performance characteristics depending on the device.
 - Sample rate and gain settings still apply.
 - Not all RTL-SDR devices support direct sampling equally well.

@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using RtlSdrManager.Exceptions;
 using RtlSdrManager.Hardware;
 using RtlSdrManager.Modes;
 
@@ -129,6 +130,8 @@ internal static class Program
             VerifyTunerGain(device, tuner, report);
             Console.WriteLine();
             VerifyCenterFrequency(device, tuner, report);
+            Console.WriteLine();
+            VerifyDirectSampling(device, report);
             Console.WriteLine();
             VerifyBiasTeeGpio(device, tuner, report, biasTeeOn);
         }
@@ -333,6 +336,112 @@ internal static class Program
         {
             report.Skip("a frequency in a known unreliable range reports a useful error",
                 $"the {tuner} has no range with device-dependent behavior; this needs an E4000");
+        }
+    }
+
+    /// <summary>
+    /// Verify that direct sampling reaches frequencies the tuner cannot.
+    /// </summary>
+    /// <param name="device">The device under test, restored to its original mode on exit.</param>
+    /// <param name="report">Report collecting the outcomes.</param>
+    /// <remarks>
+    /// This is the check that needs hardware most. The demodulator accepts an out of range
+    /// frequency without complaint and quietly receives something else, so nothing but a real
+    /// device can confirm that the limit is enforced in the right place.
+    /// <para>
+    /// Direct sampling is volatile register state, not a stored setting: turning it off
+    /// restores every register the enable path touched, and unplugging the device would clear
+    /// it regardless. The original mode is captured and restored here anyway.
+    /// </para>
+    /// </remarks>
+    private static void VerifyDirectSampling(RtlSdrManagedDevice device, VerificationReport report)
+    {
+        Console.WriteLine("Direct sampling");
+
+        DirectSamplingModes originalMode = device.DirectSamplingMode;
+
+        try
+        {
+            // Entered from whatever frequency the previous checks left behind, which is well
+            // above the ADC's reach. That is the interesting case: the frequency has to be
+            // normalized rather than silently truncated.
+            device.DirectSamplingMode = DirectSamplingModes.InPhaseADCInputEnabled;
+
+            report.Check("enabling direct sampling leaves a frequency the ADC can actually reach",
+                () => device.SupportedFrequencyRanges[0].Contains(device.CenterFrequency),
+                "the center frequency was reset to 0 Hz, because the previous one was out of reach");
+
+            report.Check("SupportedFrequencyRanges switches to the ADC range",
+                () => device.SupportedFrequencyRanges.Count == 1 &&
+                      device.SupportedFrequencyRanges[0].Minimum.Hz == 0,
+                "a single range starting at 0 Hz, instead of the bypassed tuner's range");
+
+            Console.WriteLine($"        SupportedFrequencyRanges = " +
+                              $"{string.Join(" and ", device.SupportedFrequencyRanges)}");
+
+            report.Check("the 40 m amateur band is reachable (7.1 MHz)",
+                () =>
+                {
+                    device.CenterFrequency = Frequency.FromMHz(7.1);
+                    return device.CenterFrequency.Hz == 7_100_000;
+                },
+                "7.1 MHz set and read back; this threw ArgumentOutOfRangeException before 0.8.0");
+
+            report.Check("0 Hz is a valid frequency and reads back",
+                () =>
+                {
+                    device.CenterFrequency = Frequency.FromHz(0u);
+                    return device.CenterFrequency.Hz == 0;
+                },
+                "0 Hz accepted and returned; reading it threw before 0.8.0");
+
+            report.Check("a frequency beyond the ADC's reach is refused rather than truncated",
+                () => VerificationReport.Throws<ArgumentOutOfRangeException>(
+                    () => device.CenterFrequency = Frequency.FromMHz(20)),
+                "ArgumentOutOfRangeException; the device would otherwise receive a different " +
+                "frequency without reporting anything");
+        }
+        finally
+        {
+            RestoreDirectSamplingMode(device, originalMode);
+        }
+    }
+
+    /// <summary>
+    /// Put the device back into the sampling mode it was using before the checks ran.
+    /// </summary>
+    /// <param name="device">The device under test.</param>
+    /// <param name="originalMode">The mode captured before the checks ran.</param>
+    /// <remarks>
+    /// Best effort, like the other restorations: leaving direct sampling on would be
+    /// surprising, but failing to report the check results would be worse. Turning it off
+    /// re-applies the current frequency to the tuner, which the checks have deliberately left
+    /// at a value only the ADC can reach, so that failure is expected and handled here.
+    /// </remarks>
+    private static void RestoreDirectSamplingMode(RtlSdrManagedDevice device,
+        DirectSamplingModes originalMode)
+    {
+        try
+        {
+            device.DirectSamplingMode = originalMode;
+        }
+        catch (RtlSdrLibraryExecutionException)
+        {
+            // Expected: the mode did change, only the re-tune failed. Give the tuner a
+            // frequency it can reach so the device is left usable.
+            try
+            {
+                device.CenterFrequency = device.SupportedFrequencyRanges[0].Minimum;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  WARN  could not restore a tunable center frequency: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  WARN  could not restore the direct sampling mode to " +
+                              $"{originalMode}: {ex.Message}");
         }
     }
 

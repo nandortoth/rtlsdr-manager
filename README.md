@@ -306,15 +306,26 @@ device.SetBiasTee(BiasTeeModes.Disabled);
 #### Direct Sampling (HF reception)
 
 ```csharp
-// Enable direct sampling on I-ADC
+// Enable direct sampling on I-ADC, before choosing a frequency
 device.DirectSamplingMode = DirectSamplingModes.InPhaseADCInputEnabled;
 
 // Or on Q-ADC
 device.DirectSamplingMode = DirectSamplingModes.QuadratureADCInputEnabled;
 
-// Disable
+// The reachable range is now the ADC's: 0 Hz to half the crystal frequency,
+// which is 0 - 14.4 MHz on the usual 28.8 MHz crystal
+Console.WriteLine(string.Join(" and ", device.SupportedFrequencyRanges));
+
+device.CenterFrequency = Frequency.FromMHz(7.1);  // 40 m amateur band
+
+// Disable, then set a frequency the tuner can reach
 device.DirectSamplingMode = DirectSamplingModes.Disabled;
+device.CenterFrequency = Frequency.FromMHz(145);
 ```
+
+Frequencies above half the crystal are received by aliasing rather than tuned to directly:
+subtract the wanted frequency from the crystal frequency. See
+[Direct Sampling](docs/DIRECT_SAMPLING.md) for the detail.
 
 #### Frequency Correction (PPM)
 

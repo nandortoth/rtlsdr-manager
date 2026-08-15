@@ -48,10 +48,15 @@
             v0.8.0 (2026-08-15):
 
             ADDED:
-            - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities and
-              FrequencyRange types behind it, describing what each tuner can reach.
+            - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities,
+              DemodulatorCapabilities and FrequencyRange types behind it, reporting what the
+              device can currently reach: the tuner's ranges, or the ADC's while direct
+              sampling is active.
 
             FIXED:
+            - Direct sampling is usable at last. CenterFrequency validated against the tuner's
+              range even while direct sampling bypassed the tuner, so every HF frequency was
+              rejected. The range is now the ADC's: 0 Hz to half the crystal frequency.
             - The E4000 accepts exactly 1100 and 1250 MHz, which an asymmetric comparison
               rejected even though both are documented as supported.
             - 0.0 dB is accepted as a tuner gain on the R820T/R828D, where it is the tuner's
@@ -63,8 +68,10 @@
               to the demodulator, so the restriction was never justified.
 
             CHANGED:
-            - BREAKING: reading TunerGain before a gain has been set throws
+            - BREAKING: reading TunerGain or CenterFrequency before one has been set throws
               InvalidOperationException instead of RtlSdrLibraryExecutionException.
+            - Enabling direct sampling resets the center frequency to 0 Hz when the current one
+              is beyond the ADC's reach, because the demodulator would truncate it silently.
             - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
               0..7, instead of RtlSdrLibraryExecutionException.
             - SetMinimumTunerGain() selects 0.0 dB on the R820T/R828D instead of 0.9 dB.

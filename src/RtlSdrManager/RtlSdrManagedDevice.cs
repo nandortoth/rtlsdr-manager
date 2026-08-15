@@ -249,20 +249,55 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
-    /// Get the frequency ranges the tuner of this device can reach.
+    /// Get the frequency ranges this device can currently reach.
     /// </summary>
     /// <remarks>
-    /// These are the ranges <see cref="CenterFrequency"/> accepts. Most tuners report a single
-    /// range; the FC2580 reports two, with a gap between them.
+    /// These are the ranges <see cref="CenterFrequency"/> accepts right now, so the answer
+    /// depends on <see cref="DirectSamplingMode"/>. With the tuner in circuit these are its
+    /// ranges: most tuners report one, the FC2580 reports two with a gap between them. While
+    /// direct sampling is active the tuner is bypassed and the single reported range is the
+    /// ADC's instead.
     /// <para>
     /// Falling inside a range does not guarantee that this particular device will lock to a
     /// given frequency: some tuners have regions where that varies between individual devices,
     /// and those are reported by <see cref="TunerCapabilities.GetUnreliableRanges"/>.
     /// </para>
     /// </remarks>
-    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner is not recognized.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">
+    /// Thrown when the tuner is not recognized. Direct sampling does not use the tuner, so it
+    /// reports its range even then.
+    /// </exception>
     public IReadOnlyList<FrequencyRange> SupportedFrequencyRanges =>
-        TunerCapabilities.GetTunableRanges(TunerType);
+        DirectSamplingMode != DirectSamplingModes.Disabled
+            ? [DemodulatorCapabilities.GetDirectSamplingRange(CrystalFrequency.Rtl2832Frequency)]
+            : TunerCapabilities.GetTunableRanges(TunerType);
+
+    /// <summary>
+    /// Explain a tuning failure when the cause is known, for appending to an error message.
+    /// </summary>
+    /// <param name="directSampling">Direct sampling mode in effect when the attempt was made.</param>
+    /// <param name="frequency">The frequency that was refused.</param>
+    /// <returns>An explanatory sentence, or an empty string when there is nothing to add.</returns>
+    /// <remarks>
+    /// The device writes its own diagnostics to the console, which callers often suppress, so
+    /// anything a caller needs in order to act has to be part of the exception instead.
+    /// </remarks>
+    private string DescribeTuningFailure(DirectSamplingModes directSampling, Frequency frequency)
+    {
+        // Direct sampling does not fail this way: the value is written to a register without
+        // any check, so a rejection here is not about the frequency.
+        if (directSampling != DirectSamplingModes.Disabled)
+        {
+            return string.Empty;
+        }
+
+        return TunerCapabilities.IsUnreliable(TunerType, frequency)
+            ? " The tuner could not lock to this frequency. It falls within " +
+              $"{string.Join(" and ", TunerCapabilities.GetUnreliableRanges(TunerType))}, " +
+              "where this tuner often cannot lock; the exact boundaries vary between " +
+              "individual devices."
+            : string.Empty;
+    }
 
     /// <summary>
     /// Set and get the center frequency of the device.
@@ -276,12 +311,15 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Get the value from the device.
             uint returnValue = LibRtlSdr.rtlsdr_get_center_freq(_deviceHandle!);
 
-            // If we got 0, there is an error.
-            if (returnValue == 0)
+            // 0 Hz is a real frequency while direct sampling is active, and it is where the
+            // device sits until something else is chosen. With the tuner in circuit no tuner
+            // reaches 0, so there the value means no frequency has been set, or the last
+            // attempt failed. That is a usage problem rather than a device fault.
+            if (returnValue == 0 && DirectSamplingMode == DirectSamplingModes.Disabled)
             {
-                throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during reading the center frequency of the device. " +
-                    $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                throw new InvalidOperationException(
+                    "No center frequency has been set yet, so there is nothing to read. " +
+                    $"Set CenterFrequency first. Device index: {DeviceInfo.Index}.");
             }
 
             // Return the value.
@@ -289,18 +327,41 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         }
         set
         {
-            TunerTypes tuner = TunerType;
+            DirectSamplingModes directSampling = DirectSamplingMode;
 
-            // Reject only what the tuner physically cannot reach. Regions where a tuner is
-            // merely unreliable are left to the device: their boundaries vary between
-            // individual devices, so a fixed check here would refuse frequencies that this
-            // particular device handles perfectly well.
-            if (!TunerCapabilities.IsTunable(tuner, value))
+            if (directSampling != DirectSamplingModes.Disabled)
             {
-                throw new ArgumentOutOfRangeException(nameof(value), value,
-                    "Problem happened during setting the center frequency of the device. " +
-                    "The given frequency is outside the range supported by the tuner. " +
-                    $"Supported: {TunerCapabilities.DescribeTunableRanges(tuner)}.");
+                // The tuner is out of circuit, so its coverage is irrelevant and its type is
+                // deliberately not consulted: direct sampling works even where the tuner is
+                // not recognized. The limit here is the ADC's, and it must be enforced,
+                // because writing past it silently truncates instead of reporting an error.
+                FrequencyRange samplingRange =
+                    DemodulatorCapabilities.GetDirectSamplingRange(CrystalFrequency.Rtl2832Frequency);
+
+                if (!samplingRange.Contains(value))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        "Problem happened during setting the center frequency of the device. " +
+                        "Direct sampling is active, so the frequency is set on the ADC, which " +
+                        $"covers {samplingRange}. Receive higher frequencies by aliasing: tune " +
+                        "to the crystal frequency minus the wanted frequency.");
+                }
+            }
+            else
+            {
+                TunerTypes tuner = TunerType;
+
+                // Reject only what the tuner physically cannot reach. Regions where a tuner is
+                // merely unreliable are left to the device: their boundaries vary between
+                // individual devices, so a fixed check here would refuse frequencies that this
+                // particular device handles perfectly well.
+                if (!TunerCapabilities.IsTunable(tuner, value))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        "Problem happened during setting the center frequency of the device. " +
+                        "The given frequency is outside the range supported by the tuner. " +
+                        $"Supported: {TunerCapabilities.DescribeTunableRanges(tuner)}.");
+                }
             }
 
             // Set the new value on the device with console suppression.
@@ -311,20 +372,10 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                 // If we did not get 0, there is an error.
                 if (returnValue != 0)
                 {
-                    // A failure inside a known unreliable region has a specific, actionable
-                    // cause. Say so here rather than leaving the caller with an error code:
-                    // the device's own diagnostics go to the console, which the caller may
-                    // well have suppressed.
-                    string detail = TunerCapabilities.IsUnreliable(tuner, value)
-                        ? " The tuner could not lock to this frequency. It falls within " +
-                          $"{string.Join(" and ", TunerCapabilities.GetUnreliableRanges(tuner))}, " +
-                          "where this tuner often cannot lock; the exact boundaries vary " +
-                          "between individual devices."
-                        : string.Empty;
-
                     throw new RtlSdrLibraryExecutionException(
                         "Problem happened during setting the center frequency of the device. " +
-                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.{detail}");
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}." +
+                        DescribeTuningFailure(directSampling, value));
                 }
             });
         }
@@ -582,7 +633,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// for an unknown tuner, which is one of the two cases that must be handled here.
     /// </remarks>
     internal static bool HasNoGainValues(int[] rawGains) =>
-        rawGains.Length == 1 && rawGains[0] == 0;
+        rawGains is [0];
 
     /// <summary>
     /// Convert a raw librtlsdr gain table (tenths of a dB) to the public dB list.
@@ -859,7 +910,25 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <summary>
     /// Direct Sampling mode for the device.
     /// </summary>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <remarks>
+    /// Direct sampling bypasses the tuner and feeds the antenna straight to the ADC, which is
+    /// how frequencies below the tuner's range are received. See
+    /// <see cref="SupportedFrequencyRanges"/> for what <see cref="CenterFrequency"/> accepts
+    /// while it is active.
+    /// <para>
+    /// Switching mode re-applies the current center frequency, which is usually meaningless in
+    /// the mode being entered. Turning direct sampling on therefore resets the center
+    /// frequency to 0 Hz whenever the current one is out of the ADC's reach, because the
+    /// device would otherwise quietly receive the wrong frequency. Set
+    /// <see cref="CenterFrequency"/> after switching, not before.
+    /// </para>
+    /// <para>
+    /// Turning direct sampling off re-applies the current frequency to the tuner, which fails
+    /// if it is one only the ADC could reach. The mode still changes; set a frequency the
+    /// tuner supports afterward.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the mode cannot be set.</exception>
     public DirectSamplingModes DirectSamplingMode
     {
         get
@@ -878,7 +947,14 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Return the value.
             return (DirectSamplingModes)returnValue;
         }
-        set =>
+        set
+        {
+            // Changing mode re-applies the current center frequency through the path being
+            // entered. Read it before the switch to decide whether that will be meaningful:
+            // the raw call is used because 0 Hz is a legitimate answer here, not an error.
+            uint currentFrequencyHz = LibRtlSdr.rtlsdr_get_center_freq(_deviceHandle!);
+            bool enabling = value != DirectSamplingModes.Disabled;
+
             // Set the new value on the device.
             ExecuteWithSuppression(() =>
             {
@@ -887,11 +963,39 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                 // If we did not get 0, there is an error.
                 if (returnValue != 0)
                 {
+                    // Turning direct sampling off re-tunes the tuner to the current frequency,
+                    // which fails when that frequency is one only the ADC could reach. The
+                    // mode has already changed by then, so rather than implying the
+                    // whole operation was rejected.
+                    string detail = !enabling
+                        ? " The mode was changed, but the current center frequency could not " +
+                          "be re-applied to the tuner. Set a frequency the tuner supports."
+                        : string.Empty;
+
                     throw new RtlSdrLibraryExecutionException(
                         "Problem happened during setting direct sampling mode of the device. " +
-                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.{detail}");
                 }
             });
+
+            if (!enabling)
+            {
+                return;
+            }
+
+            // Enabling re-applied the old frequency to the ADC. Anything beyond the ADC's
+            // reach is silently truncated rather than refused, so the device would now be
+            // receiving something other than what it reports. Reset to a defined 0 Hz instead.
+            // Refusing to enable would be worse: the tuner cannot reach a low enough frequency
+            // to satisfy the check, so the caller would have no way out.
+            FrequencyRange samplingRange =
+                DemodulatorCapabilities.GetDirectSamplingRange(CrystalFrequency.Rtl2832Frequency);
+
+            if (!samplingRange.Contains(new Frequency(currentFrequencyHz)))
+            {
+                CenterFrequency = Frequency.FromHz(0u);
+            }
+        }
     }
 
     /// <summary>

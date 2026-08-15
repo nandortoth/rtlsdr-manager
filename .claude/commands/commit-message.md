@@ -65,8 +65,9 @@ Analyze the staged changes and their context (what the code does, why it was cha
      `Fix crash and leak paths in async read and console suppression`.
    - For performance work, say what it saves:
      `Store IQData components as bytes to cut sample memory`.
-   - **Flag breaking changes** in the subject when the public API changes incompatibly, and
-     make sure `CHANGELOG.md` marks them `**BREAKING**`.
+   - **Breaking changes belong in `CHANGELOG.md`**, marked `**BREAKING**`. Do not flag them
+     in the subject: no commit in this repo's history does, and the subject is better spent
+     naming what changed.
    - Native-interop changes should mention the native side when relevant:
      `Add native library fallback paths for additional Linux distributions`.
 

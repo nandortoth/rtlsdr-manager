@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2026-08-15
 
 ### Added
-- `SupportedFrequencyRanges` on `RtlSdrManagedDevice`, and the `TunerCapabilities` /
-  `FrequencyRange` types behind it, describing what each tuner can reach. Symmetric with
-  `SupportedTunerGains`, and useful for building a scanner without hardcoding tuner limits
+- `SupportedFrequencyRanges` on `RtlSdrManagedDevice`, and the `TunerCapabilities`,
+  `DemodulatorCapabilities` and `FrequencyRange` types behind it, describing what the device
+  can currently reach. Reports the tuner's ranges normally and the ADC's while direct sampling
+  is active, so it always answers what `CenterFrequency` accepts. Symmetric with
+  `SupportedTunerGains`, and useful for building a scanner without hardcoding limits
 
 ### Fixed
+- Direct sampling is usable at last. `CenterFrequency` validated against the tuner's range
+  even while direct sampling bypassed the tuner, so every HF frequency was rejected: the
+  feature was unreachable on the R820T/R828D, and the examples in `docs/DIRECT_SAMPLING.md`
+  threw as written. The range is now the ADC's, 0 Hz to half the RTL2832U's crystal frequency
+  (0 -- 14.4 MHz on the usual 28.8 MHz crystal)
 - The E4000 accepts exactly `1100` and `1250` MHz, which an asymmetric comparison rejected
   even though both are documented as supported
 - `0.0 dB` is now accepted as a tuner gain on the R820T/R828D, where it is the tuner's
@@ -30,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: reading `TunerGain` before a gain has been set now throws
   `InvalidOperationException` instead of `RtlSdrLibraryExecutionException`; it is a usage
   error, classified like the other state errors introduced in 0.7.0
+- **BREAKING**: reading `CenterFrequency` before one has been set throws
+  `InvalidOperationException` for the same reason. While direct sampling is active `0` Hz is a
+  real frequency and is returned rather than treated as an error
+- Enabling direct sampling resets the center frequency to `0` Hz when the current one is
+  beyond the ADC's reach. Switching mode re-applies the frequency, and the demodulator
+  truncates an out-of-range value instead of refusing it, so the device would otherwise
+  receive something other than what it reports
 - `SetMinimumTunerGain()` selects `0.0` dB on the R820T/R828D instead of `0.9` dB, so
   receivers relying on it get slightly less gain
 - The E4000's `1100` to `1250` MHz gap is no longer rejected up front. Its boundaries vary
