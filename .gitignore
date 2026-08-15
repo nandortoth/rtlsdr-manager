@@ -7,7 +7,11 @@ artifacts/
 .idea/
 .vs/
 .vscode/
-.claude/
+
+# Claude Code: share commands and skills, keep local settings private
+.claude/*
+!.claude/commands/
+!.claude/skills/
 
 # User-specific files
 *.user
