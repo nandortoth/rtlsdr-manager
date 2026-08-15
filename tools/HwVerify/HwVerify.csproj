@@ -9,6 +9,10 @@
 
         <!-- Contributor tool: never packed, never published to NuGet. -->
         <IsPackable>false</IsPackable>
+
+        <!-- The console suppression check writes straight to a file descriptor, and the
+             LibraryImport source generator emits unsafe marshalling code for that. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>

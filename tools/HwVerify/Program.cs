@@ -16,7 +16,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Hardware;
@@ -47,8 +49,30 @@ namespace RtlSdrManager.Tools.HwVerify;
 /// the pin back is not possible.
 /// </para>
 /// </remarks>
-internal static class Program
+internal static partial class Program
 {
+    /// <summary>Standard output file descriptor.</summary>
+    private const int StdOut = 1;
+
+    /// <summary>Standard error file descriptor, where the driver writes its diagnostics.</summary>
+    private const int StdErr = 2;
+
+    /// <summary>Open for writing only. The file itself is created through .NET beforehand.</summary>
+    private const int O_WRONLY = 0x0001;
+
+    [LibraryImport("libc", EntryPoint = "dup", SetLastError = true)]
+    private static partial int NativeDup(int fd);
+
+    [LibraryImport("libc", EntryPoint = "dup2", SetLastError = true)]
+    private static partial int NativeDup2(int oldFd, int newFd);
+
+    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
+    private static partial int NativeClose(int fd);
+
+    [LibraryImport("libc", EntryPoint = "open", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int NativeOpen(string path, int flags);
+
     /// <summary>
     /// Exit code reported when every check that ran passed.
     /// </summary>
@@ -132,6 +156,8 @@ internal static class Program
             VerifyCenterFrequency(device, tuner, report);
             Console.WriteLine();
             VerifyDirectSampling(device, report);
+            Console.WriteLine();
+            VerifyConsoleSuppression(device, report);
             Console.WriteLine();
             VerifyBiasTeeGpio(device, tuner, report, biasTeeOn);
         }
@@ -443,6 +469,117 @@ internal static class Program
             Console.WriteLine($"  WARN  could not restore the direct sampling mode to " +
                               $"{originalMode}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Verify that console suppression hides the driver's own diagnostics.
+    /// </summary>
+    /// <param name="device">The device under test, left in the mode it arrived in.</param>
+    /// <param name="report">Report collecting the outcomes.</param>
+    /// <remarks>
+    /// The unit tests prove the redirection mechanism works. Only a device proves what the
+    /// feature is for, because only a device makes the driver print anything. Changing the
+    /// direct sampling mode is the probe: the driver reports it on standard error every time,
+    /// whether or not the mode actually changes.
+    /// <para>
+    /// The check runs twice, and the first run is the one that makes the second meaningful.
+    /// Asserting that nothing was captured proves little on its own, since a broken capture
+    /// would look identical; observing the message with suppression off establishes that the
+    /// capture works before asking whether suppression removes it.
+    /// </para>
+    /// </remarks>
+    private static void VerifyConsoleSuppression(RtlSdrManagedDevice device, VerificationReport report)
+    {
+        Console.WriteLine("Console suppression");
+
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        {
+            report.Skip("the driver's diagnostics are hidden while suppression is on",
+                "this check redirects POSIX file descriptors, so it only runs on Linux and macOS");
+            return;
+        }
+
+        // The driver announces every direct sampling change, so setting the mode it is already
+        // in still produces a line without disturbing the device.
+        DirectSamplingModes currentMode = device.DirectSamplingMode;
+
+        try
+        {
+            string withoutSuppression = CaptureNativeOutput(() =>
+            {
+                RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
+                device.DirectSamplingMode = currentMode;
+            });
+
+            report.Check("the driver's diagnostics are visible while suppression is off",
+                () => withoutSuppression.Contains("direct sampling", StringComparison.OrdinalIgnoreCase),
+                "the driver's message about the sampling mode; without this the next check " +
+                "would pass even if the capture were broken");
+
+            string withSuppression = CaptureNativeOutput(() =>
+            {
+                RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
+                device.DirectSamplingMode = currentMode;
+            });
+
+            report.Check("the driver's diagnostics are hidden while suppression is on",
+                () => !withSuppression.Contains("direct sampling", StringComparison.OrdinalIgnoreCase),
+                "no output at all; the same operation printed a message a moment ago");
+        }
+        finally
+        {
+            // The harness runs with suppression on throughout; put it back.
+            RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
+        }
+    }
+
+    /// <summary>
+    /// Run an action with both standard streams pointed at a file, and return what was written.
+    /// </summary>
+    /// <param name="scenario">The action to run while output is captured.</param>
+    /// <returns>Everything the action wrote to standard output or standard error.</returns>
+    /// <remarks>
+    /// Both descriptors are captured because the driver writes its diagnostics to standard
+    /// error while the suppressor covers both. Restoring in a finally is not optional: leaving
+    /// either descriptor pointed at the file would discard the rest of this run's report.
+    /// </remarks>
+    private static string CaptureNativeOutput(Action scenario)
+    {
+        string capturePath = Path.Combine(Path.GetTempPath(),
+            $"hwverify-suppression-{Guid.NewGuid():N}.txt");
+
+        // Create through .NET so the native open needs no creation flags or mode bits.
+        File.WriteAllText(capturePath, string.Empty);
+
+        int savedStdOut = NativeDup(StdOut);
+        int savedStdErr = NativeDup(StdErr);
+
+        try
+        {
+            int captureFd = NativeOpen(capturePath, O_WRONLY);
+            if (captureFd < 0)
+            {
+                return string.Empty;
+            }
+
+            _ = NativeDup2(captureFd, StdOut);
+            _ = NativeDup2(captureFd, StdErr);
+            _ = NativeClose(captureFd);
+
+            scenario();
+        }
+        finally
+        {
+            _ = NativeDup2(savedStdOut, StdOut);
+            _ = NativeDup2(savedStdErr, StdErr);
+            _ = NativeClose(savedStdOut);
+            _ = NativeClose(savedStdErr);
+        }
+
+        string captured = File.ReadAllText(capturePath);
+        File.Delete(capturePath);
+
+        return captured;
     }
 
     /// <summary>

@@ -4,6 +4,10 @@
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
+
+        <!-- The suppression behavior tests write straight to a file descriptor, and the
+             LibraryImport source generator emits unsafe marshalling code for that. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
