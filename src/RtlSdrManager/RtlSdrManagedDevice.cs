@@ -432,12 +432,19 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
-    /// Set the sample rate of the device.
+    /// Set and get the sample rate of the device.
     ///   225001 - 300000 Hz
     ///   900001 - 3200000 Hz
     ///   Sample loss is to be expected for rates more than 2400000 Hz.
     /// </summary>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <remarks>
+    /// A device reports no sample rate until one is set, so read this only after setting it.
+    /// The value read back is the rate the device settled on, which is the closest it can
+    /// reach to the one requested rather than the request itself.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown when no sample rate has been set yet.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the rate is outside the supported ranges.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device rejects the rate.</exception>
     public Frequency SampleRate
     {
         get
@@ -445,12 +452,14 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             // Get the value from the device.
             uint returnValue = LibRtlSdr.rtlsdr_get_sample_rate(_deviceHandle!);
 
-            // If we got 0, there is an error.
+            // The device holds no rate until one is written, and reports it as zero. No rate
+            // in the supported ranges is zero, so this is unambiguous: it means nothing has
+            // been set, which is a usage problem rather than a device fault.
             if (returnValue == 0)
             {
-                throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during reading the sample rate of the device. " +
-                    $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                throw new InvalidOperationException(
+                    "No sample rate has been set yet, so there is nothing to read. " +
+                    $"Set SampleRate first. Device index: {DeviceInfo.Index}.");
             }
 
             // Return the value.

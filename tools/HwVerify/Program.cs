@@ -118,10 +118,13 @@ internal static class Program
             Console.WriteLine($"Device under test: index 0, tuner = {tuner}");
             Console.WriteLine();
 
-            foreach (IHardwareCheck check in BuildChecks(biasTeeOn))
+            foreach (IHardwareCheck check in BuildChecks(biasTeeOn, () => ReopenDevice(manager)))
             {
                 Console.WriteLine(check.Title);
-                check.Run(device, report);
+
+                // Resolved per check rather than captured once: a check is allowed to close
+                // and reopen the device, which invalidates any reference taken before it ran.
+                check.Run(manager[DeviceName], report);
                 Console.WriteLine();
             }
         }
@@ -139,18 +142,41 @@ internal static class Program
     /// The checks to run, in order.
     /// </summary>
     /// <param name="biasTeeOn">Whether the bias tee power-on check was requested.</param>
+    /// <param name="reopenDevice">Closes the device under test and opens it again.</param>
     /// <returns>The checks, in the order they should run.</returns>
     /// <remarks>
     /// Order matters in one place: the direct sampling checks rely on the center frequency
     /// checks having left the device tuned above the ADC's reach, which is the case worth
     /// exercising when direct sampling is switched on.
     /// </remarks>
-    private static IEnumerable<IHardwareCheck> BuildChecks(bool biasTeeOn) =>
+    private static IEnumerable<IHardwareCheck> BuildChecks(bool biasTeeOn,
+        Func<RtlSdrManagedDevice> reopenDevice) =>
     [
         new TunerGainChecks(),
         new CenterFrequencyChecks(),
         new DirectSamplingChecks(),
         new ConsoleSuppressionChecks(),
+        new SampleReadingChecks(reopenDevice),
         new BiasTeeChecks(biasTeeOn)
     ];
+
+    /// <summary>
+    /// Close the device under test and open it again, returning the new instance.
+    /// </summary>
+    /// <param name="manager">Device manager owning the device.</param>
+    /// <returns>The reopened device.</returns>
+    /// <remarks>
+    /// Closing is the only point at which the driver waits for asynchronous work to finish
+    /// and shuts the USB event handling down. Starting a fresh reading on a device that was
+    /// merely stopped leaves a canceled transfer able to complete against memory the driver
+    /// has already released, which crashes the process on macOS. A check that needs several
+    /// readings therefore takes a new device for each one instead of restarting.
+    /// </remarks>
+    private static RtlSdrManagedDevice ReopenDevice(RtlSdrDeviceManager manager)
+    {
+        manager.CloseManagedDevice(DeviceName);
+        manager.OpenManagedDevice(0, DeviceName);
+
+        return manager[DeviceName];
+    }
 }

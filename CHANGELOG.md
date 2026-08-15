@@ -34,12 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this method on pin 0
 
 ### Changed
-- **BREAKING**: reading `TunerGain` before a gain has been set now throws
-  `InvalidOperationException` instead of `RtlSdrLibraryExecutionException`; it is a usage
-  error, classified like the other state errors introduced in 0.7.0
-- **BREAKING**: reading `CenterFrequency` before one has been set throws
-  `InvalidOperationException` for the same reason. While direct sampling is active `0` Hz is a
-  real frequency and is returned rather than treated as an error
+- **BREAKING**: reading `TunerGain`, `CenterFrequency` or `SampleRate` before one has been set
+  now throws `InvalidOperationException` instead of `RtlSdrLibraryExecutionException`. All
+  three reported a device failure with "Error code: 0" for what is a usage error, and are now
+  classified like the other state errors introduced in 0.7.0. While direct sampling is active
+  `0` Hz is a real center frequency and is returned rather than treated as an error
 - Enabling direct sampling resets the center frequency to `0` Hz when the current one is
   beyond the ADC's reach. Switching mode re-applies the frequency, and the demodulator
   truncates an out-of-range value instead of refusing it, so the device would otherwise

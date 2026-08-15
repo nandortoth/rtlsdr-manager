@@ -90,10 +90,18 @@ Console.WriteLine("Both devices configured for different applications");
 ```csharp
 void DisplayDeviceCapabilities(RtlSdrManagedDevice device)
 {
+    // Fixed properties of the hardware, readable as soon as the device is open.
     // SupportedTunerGains is already expressed in dB.
     Console.WriteLine($"\n{device.DeviceInfo.Name} Capabilities:");
     Console.WriteLine($"  Tuner Type: {device.TunerType}");
     Console.WriteLine($"  Available Gains: {string.Join(", ", device.SupportedTunerGains.Select(g => $"{g:F1} dB"))}");
+    Console.WriteLine($"  Frequency Ranges: {string.Join(" and ", device.SupportedFrequencyRanges)}");
+}
+
+void DisplayCurrentSettings(RtlSdrManagedDevice device)
+{
+    // These report what the device was told, so they are only readable once it has been
+    // configured. Reading either on a freshly opened device throws InvalidOperationException.
     Console.WriteLine($"  Current Frequency: {device.CenterFrequency}");
     Console.WriteLine($"  Current Sample Rate: {device.SampleRate}");
 }

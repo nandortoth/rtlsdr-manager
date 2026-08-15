@@ -68,8 +68,9 @@
               to the demodulator, so the restriction was never justified.
 
             CHANGED:
-            - BREAKING: reading TunerGain or CenterFrequency before one has been set throws
-              InvalidOperationException instead of RtlSdrLibraryExecutionException.
+            - BREAKING: reading TunerGain, CenterFrequency or SampleRate before one has been
+              set throws InvalidOperationException instead of RtlSdrLibraryExecutionException.
+              All three reported a device failure for what is a usage error.
             - Enabling direct sampling resets the center frequency to 0 Hz when the current one
               is beyond the ADC's reach, because the demodulator would truncate it silently.
             - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
