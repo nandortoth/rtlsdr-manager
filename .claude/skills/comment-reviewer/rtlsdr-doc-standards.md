@@ -153,14 +153,14 @@ it. Similarly:
 
 ## 6. Upstream references
 
-When behaviour is inherited from librtlsdr, cite it so the next reader can verify without
+When behavior is inherited from librtlsdr, cite it so the next reader can verify without
 re-deriving. Prefer the function name over a bare line number, since upstream moves.
 
 ✅ `// librtlsdr silently falls back to the default buffer length if buf_len % 512 != 0`
 ✅ `// Matches rtlsdr_set_freq_correction, which returns -2 when the value is unchanged`
 ❌ `// see the C source`
 
-For hardware behaviour that is not in librtlsdr, cite the osmocom wiki or the datasheet:
+For hardware behavior that is not in librtlsdr, cite the osmocom wiki or the datasheet:
 ```csharp
 // Check the frequency range (http://osmocom.org/projects/sdr/wiki/rtl-sdr).
 ```

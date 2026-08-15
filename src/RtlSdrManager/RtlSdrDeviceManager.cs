@@ -28,9 +28,13 @@ namespace RtlSdrManager;
 
 /// <summary>
 /// Class for managing RTL-SDR devices.
-/// The class uses the "librtlsdr" shared library.
 /// The class is not thread-safe: open and close managed devices from a single thread.
 /// </summary>
+/// <remarks>
+/// Enumerates the RTL-SDR devices attached to the system and opens them as managed devices.
+/// A supported native driver must be installed on the system; see the project README for
+/// the per-platform installation instructions.
+/// </remarks>
 /// <inheritdoc />
 public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
 {
@@ -132,12 +136,17 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     private static readonly Lock SuppressorLock = new();
 
     /// <summary>
-    /// Gets or sets whether console output from librtlsdr should be suppressed during operations.
-    /// Default is false (messages are shown).
-    /// This affects messages like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!".
-    /// Suppression is applied only during device operations (scoped), not globally, to allow
-    /// console applications to initialize properly.
+    /// Gets or sets whether diagnostic console output produced by the native driver should be
+    /// suppressed during device operations. Default is false (messages are shown).
     /// </summary>
+    /// <remarks>
+    /// This affects messages like "Found Rafael Micro R820T tuner" and "[R82XX] PLL not locked!",
+    /// which the driver writes directly to stdout and stderr.
+    /// <para>
+    /// Suppression is scoped to individual device operations rather than applied globally, so a
+    /// console application can still initialize and write its own output normally.
+    /// </para>
+    /// </remarks>
     public static bool SuppressLibraryConsoleOutput
     {
         get => _shouldSuppressConsoleOutput;

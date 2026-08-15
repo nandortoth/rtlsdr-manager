@@ -23,7 +23,7 @@ public member is a shipped defect, not an internal tidiness issue.
 - `<param>` — for each parameter, what it represents **and its unit**
 - `<returns>` — what the method returns (if non-void)
 - `<exception>` — every exception type that can escape, and when
-- `<remarks>` — additional context: thread affinity, allocation behaviour, native quirks
+- `<remarks>` — additional context: thread affinity, allocation behavior, native quirks
 
 **Example:**
 ```csharp
@@ -35,10 +35,13 @@ public member is a shipped defect, not an internal tidiness issue.
 /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled.</exception>
 /// <exception cref="ArgumentOutOfRangeException">Thrown when the gain is not supported by the tuner.</exception>
 /// <remarks>
-/// librtlsdr expresses gain in tenths of a dB (115 means 11.5 dB); this property converts.
 /// The supported-gain list is hardware-determined and cached after the first query.
 /// </remarks>
 ```
+
+Note what the example does *not* say: it describes the gain in dB and points at
+`SupportedTunerGains`, without mentioning how the native layer encodes it. See
+"Do not expose librtlsdr in customer-facing documentation" below.
 
 **Enum members count as public API here** — they appear in IntelliSense and several were
 only documented in 0.7.0. Every member of every `Modes/` and `Hardware/` enum needs a
@@ -90,10 +93,43 @@ summary, always document:
   what, and when it is deliberately *not* freed.
 - **Tuner applicability.** If a member only works on some tuners (or only with the
   KerberosSDR fork), say which and why.
-- **Upstream references.** Cite the librtlsdr function being wrapped when behaviour is
+- **Upstream references.** Cite the librtlsdr function being wrapped when behavior is
   inherited from it.
 
-### 4. Consistency Across Codebase
+### 4. Project Writing Conventions
+
+The full rules live in `CLAUDE.md` under "Code and Documentation Conventions". Check every
+comment against all three:
+
+**American English.** *behavior*, *synchronization*, *initialize*, *center*, *canceled*,
+*analyze* — not *behaviour*, *synchronisation*, *initialise*, *centre*, *cancelled*.
+Severity: **Info**.
+
+**No dash between connected clauses.** Use a colon to introduce an explanation, a semicolon
+to link two related independent statements. Dashes stay available for genuine parenthetical
+asides and ranges. Severity: **Info**.
+
+❌ `// Rounding avoids truncation — a plain cast would turn 49.6 into 495`
+✅ `// Rounding avoids truncation: a plain cast would turn 49.6 into 495`
+
+**Do not expose `librtlsdr` in customer-facing documentation.** The library exists to hide
+the native layer, so XML docs on `public`/`protected` members must describe behavior in
+terms of *the device* and *this API*, never in terms of the native library's encoding,
+caching, or return codes. Severity: **Warning** — it leaks an implementation detail into
+shipped IntelliSense.
+
+❌ `librtlsdr expresses gain in tenths of a dB; this property converts.`
+✅ `Gain is expressed in dB; only the steps listed by SupportedTunerGains are accepted.`
+
+Two deliberate exceptions, both user-actionable: **installation prerequisites** (the
+consumer must install the native library) and **the KerberosSDR fork requirement** on
+`FrequencyDitheringMode` / `SetGPIO`.
+
+`internal` and `private` members are **exempt and should keep the native detail** — that is
+where the reasoning belongs, and it is not shipped. When flagging a public leak, check
+whether the explanation should move to an internal member rather than be deleted.
+
+### 5. Consistency Across Codebase
 
 **Ensure:**
 - Similar members use similar documentation patterns (all the `ExecuteWithSuppression`
@@ -131,7 +167,7 @@ I will:
 
 ## Verifying Interop Claims
 
-When a comment asserts something about native behaviour — an error code, a range, a
+When a comment asserts something about native behavior — an error code, a range, a
 threading guarantee — **check it against the upstream source at `../rtl-sdr`** (tag
 `v2.0.3`) rather than trusting the comment. Incorrect interop documentation is Critical:
 it is the kind of error that gets copied into consumer code.

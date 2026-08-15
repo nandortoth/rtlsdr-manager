@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-15
+
+### Fixed
+- `0.0 dB` is now accepted as a tuner gain on the R820T/R828D, where it is the tuner's
+  lowest gain step. It was previously treated as an error value, so `SupportedTunerGains`
+  reported only 28 of the tuner's 29 gains and `TunerGain = 0.0` threw
+  `ArgumentOutOfRangeException`
+- `SetMaximumTunerGain()` / `SetMinimumTunerGain()` on a tuner without manual gain control
+  (FC2580, or an unrecognized tuner) now throw `RtlSdrLibraryExecutionException` naming the
+  cause, instead of a bare "Sequence contains no elements" from LINQ
+
+### Changed
+- **BREAKING**: reading `TunerGain` before a gain has been set now throws
+  `InvalidOperationException` instead of `RtlSdrLibraryExecutionException`; it is a usage
+  error, classified like the other state errors introduced in 0.7.0
+- `SetMinimumTunerGain()` selects `0.0` dB on the R820T/R828D instead of `0.9` dB, so
+  receivers relying on it get slightly less gain
+
 ## [0.7.1] - 2026-07-24
 
 ### Changed
@@ -362,6 +380,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.8.0** | 2026-08-15 | R820T/R828D `0.0` dB gain accepted; clearer gain errors (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |
@@ -563,6 +582,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.8.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.8.0
 [0.7.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.1
 [0.7.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.0
 [0.6.3]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.6.3

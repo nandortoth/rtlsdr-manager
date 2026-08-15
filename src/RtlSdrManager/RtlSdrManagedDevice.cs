@@ -87,6 +87,14 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     private int[]? _supportedTunerGainsCache;
 
     /// <summary>
+    /// Last tuner gain (in tenths of a dB) successfully written to the device, or null when
+    /// no manual gain has been set in this session. librtlsdr returns 0 from
+    /// rtlsdr_get_tuner_gain both for "never set" and for a legitimate 0.0 dB gain, so the
+    /// return value alone cannot tell them apart; this field does.
+    /// </summary>
+    private int? _lastSetTunerGain;
+
+    /// <summary>
     /// Private field to implement IDispose interface.
     /// </summary>
     private bool _disposed;
@@ -549,11 +557,73 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
-    /// Get a list of gains supported by the tuner.
+    /// Get a list of gains supported by the tuner, in dB.
     /// </summary>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <remarks>
+    /// These are the only values <see cref="TunerGain"/> accepts. The list is
+    /// hardware-determined and queried once per device.
+    /// <para>
+    /// The list is empty for tuners which have no manual gain control: the FC2580, and a
+    /// tuner the device does not recognize. On the R820T/R828D the list starts at
+    /// <c>0.0</c> dB; that is the tuner's lowest gain step, not an absence of gain.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the supported gains cannot be read.</exception>
     public List<double> SupportedTunerGains =>
-        EnsureSupportedTunerGainsRaw().Where(gain => gain != 0).Select(gain => gain / 10.0).ToList();
+        ToSupportedGains(EnsureSupportedTunerGainsRaw());
+
+    /// <summary>
+    /// Decide whether a raw gain table from librtlsdr means "this tuner has no gain control".
+    /// </summary>
+    /// <param name="rawGains">Raw gain table (tenths of a dB) as reported by librtlsdr.</param>
+    /// <returns>True when the table is a no-gain placeholder.</returns>
+    /// <remarks>
+    /// librtlsdr returns a single-entry <c>{ 0 }</c> table for the FC2580 and for an unknown
+    /// tuner, commented "no gain values". Every tuner with real gain control reports at least
+    /// five entries, so the table's shape identifies the placeholder unambiguously. Testing
+    /// the shape rather than the tuner type matters: the <see cref="TunerType"/> getter throws
+    /// for an unknown tuner, which is one of the two cases that must be handled here.
+    /// </remarks>
+    internal static bool HasNoGainValues(int[] rawGains) =>
+        rawGains.Length == 1 && rawGains[0] == 0;
+
+    /// <summary>
+    /// Convert a raw librtlsdr gain table (tenths of a dB) to the public dB list.
+    /// </summary>
+    /// <param name="rawGains">Raw gain table as reported by librtlsdr.</param>
+    /// <returns>Supported gains in dB, or an empty list when the tuner has no gain control.</returns>
+    internal static List<double> ToSupportedGains(int[] rawGains) =>
+        HasNoGainValues(rawGains)
+            ? []
+            : rawGains.Select(gain => gain / 10.0).ToList();
+
+    /// <summary>
+    /// Decide whether a gain (in tenths of a dB) is one of the tuner's supported steps.
+    /// </summary>
+    /// <param name="rawGains">Raw gain table as reported by librtlsdr.</param>
+    /// <param name="gainTenths">Requested gain in tenths of a dB.</param>
+    /// <returns>True when the gain is supported by the tuner.</returns>
+    /// <remarks>
+    /// Compares in integer tenths of a dB, so no floating point rounding is involved.
+    /// A tuner with no gain control supports nothing, not even 0.
+    /// </remarks>
+    internal static bool IsSupportedGain(int[] rawGains, int gainTenths)
+    {
+        if (HasNoGainValues(rawGains))
+        {
+            return false;
+        }
+
+        foreach (int supportedGain in rawGains)
+        {
+            if (supportedGain == gainTenths)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Return the raw supported tuner gains (in tenths of a dB) from librtlsdr, caching them.
@@ -597,12 +667,23 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
-    /// Set the tuner gain for the device.
+    /// Set and get the tuner gain of the device, in dB.
     /// Manual tuner gain mode must be enabled for this to work.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled.</exception>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    /// <remarks>
+    /// Only the steps listed by <see cref="SupportedTunerGains"/> are accepted; on the
+    /// R820T/R828D those include <c>0.0</c> dB, which selects the tuner's minimum-gain
+    /// configuration.
+    /// <para>
+    /// The device reports no gain until one has been set, so the getter throws in that case
+    /// rather than returning a misleading <c>0.0</c> dB. Set <see cref="TunerGain"/>, or use
+    /// <see cref="SetMinimumTunerGain"/> / <see cref="SetMaximumTunerGain"/>, before reading.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled,
+    /// or when no manual gain has been set yet in this session.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device rejects the gain.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the gain is not a step supported by the tuner.</exception>
     public double TunerGain
     {
         get
@@ -615,18 +696,21 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                     $"Device index: {DeviceInfo.Index}.");
             }
 
+            // librtlsdr returns its cached dev->gain, which stays 0 until a gain is written
+            // (rtlsdr_set_tuner_gain_mode does not touch it). Without a gain to report, the
+            // device has nothing to say: this is a usage error, not a device failure.
+            if (_lastSetTunerGain == null)
+            {
+                throw new InvalidOperationException(
+                    "No tuner gain has been set yet, it is not possible to read the TunerGain property. " +
+                    $"Set TunerGain first. Device index: {DeviceInfo.Index}.");
+            }
+
             // Get the value from the device.
             int returnValue = LibRtlSdr.rtlsdr_get_tuner_gain(_deviceHandle!);
 
-            // If we got 0, there is an error.
-            if (returnValue == 0)
-            {
-                throw new RtlSdrLibraryExecutionException(
-                    "Problem happened during reading the tuner gain of the device. " +
-                    $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
-            }
-
-            // Return the value.
+            // Return the value. 0 is a valid reading here (see remarks), so it is not
+            // treated as an error code.
             return returnValue / 10.0;
         }
         set
@@ -644,23 +728,19 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             int gain = (int)Math.Round(value * 10);
 
             // Is the given value supported? Compare in integer tenths of dB against the raw
-            // cache (no allocation, no floating point), preserving the zero-filter that
-            // SupportedTunerGains applies.
-            bool supported = false;
-            foreach (int supportedGain in EnsureSupportedTunerGainsRaw())
+            // cache (no allocation, no floating point).
+            int[] rawGains = EnsureSupportedTunerGainsRaw();
+            if (!IsSupportedGain(rawGains, gain))
             {
-                if (supportedGain != 0 && supportedGain == gain)
-                {
-                    supported = true;
-                    break;
-                }
-            }
-
-            if (!supported)
-            {
+                // Distinguish "this tuner has no gain control at all" from "wrong step",
+                // because SupportedTunerGains is empty in the first case and pointing the
+                // caller at it would be useless.
                 throw new ArgumentOutOfRangeException(nameof(value), value,
-                    "Problem happened during setting the tuner gain of the device. " +
-                    "The given tuner gain is not supported, see SupportedTunerGains.");
+                    HasNoGainValues(rawGains)
+                        ? "Problem happened during setting the tuner gain of the device. " +
+                          "The tuner does not support manual gain control."
+                        : "Problem happened during setting the tuner gain of the device. " +
+                          "The given tuner gain is not supported, see SupportedTunerGains.");
             }
 
             // Set the gain for the device
@@ -676,6 +756,10 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                         $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
                 }
             });
+
+            // Remember what the device now holds, so the getter can tell a real 0.0 dB
+            // reading apart from "never set". Only reached when the write succeeded.
+            _lastSetTunerGain = gain;
         }
     }
 
@@ -919,14 +1003,45 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
-    /// Set the maximum supported tuner gain.
+    /// Set the maximum tuner gain supported by the tuner.
     /// </summary>
-    public void SetMaximumTunerGain() => TunerGain = SupportedTunerGains.Max();
+    /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner has no gain control.</exception>
+    public void SetMaximumTunerGain() => TunerGain = RequireSupportedTunerGains().Max();
 
     /// <summary>
-    /// Set the minimum supported tuner gain.
+    /// Set the minimum tuner gain supported by the tuner.
     /// </summary>
-    public void SetMinimumTunerGain() => TunerGain = SupportedTunerGains.Min();
+    /// <remarks>
+    /// On the R820T/R828D the minimum is <c>0.0</c> dB: the tuner's lowest gain step, not an
+    /// absence of gain.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown when AGC tuner gain mode is enabled.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner has no gain control.</exception>
+    public void SetMinimumTunerGain() => TunerGain = RequireSupportedTunerGains().Min();
+
+    /// <summary>
+    /// Return the supported tuner gains, failing with a clear message when the tuner has none.
+    /// </summary>
+    /// <returns>Supported gains in dB, never empty.</returns>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner has no gain control.</exception>
+    private List<double> RequireSupportedTunerGains()
+    {
+        List<double> supportedGains = SupportedTunerGains;
+
+        // Guard the empty list here: letting Max()/Min() throw would surface as a bare
+        // "Sequence contains no elements" with nothing pointing at the tuner.
+        // The message deliberately does not name the tuner type: an unknown tuner is one of
+        // the two cases which land here, and the TunerType getter throws for exactly that.
+        if (supportedGains.Count == 0)
+        {
+            throw new RtlSdrLibraryExecutionException(
+                "The tuner does not support manual gain control, so no minimum or maximum " +
+                $"gain can be set. Device index: {DeviceInfo.Index}.");
+        }
+
+        return supportedGains;
+    }
 
     /// <summary>
     /// Enable or disable the Bias Tee on the GPIO pin 0.
@@ -1046,8 +1161,8 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Releases all resources used by the RTL-SDR managed device.
     /// </summary>
     /// <remarks>
-    /// This method stops any async operations, disposes the device handle (which automatically
-    /// calls rtlsdr_close via SafeHandle), and releases the GC handle for the device context.
+    /// Stops any asynchronous reading in progress, closes the device, and releases the
+    /// resources held on its behalf. Safe to call more than once.
     /// </remarks>
     public void Dispose()
     {

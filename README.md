@@ -39,7 +39,7 @@ dotnet add package RtlSdrManager
 Install-Package RtlSdrManager
 
 # PackageReference (in .csproj)
-<PackageReference Include="RtlSdrManager" Version="0.7.1" />
+<PackageReference Include="RtlSdrManager" Version="0.8.0" />
 ```
 
 ### Prerequisites

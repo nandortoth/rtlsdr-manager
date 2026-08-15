@@ -84,7 +84,7 @@ Installation section. Update it regardless of its current value.
 
 ### 4. Historical version references — do NOT bump
 
-Some prose records *when* a behaviour was introduced. These are facts about the past and
+Some prose records *when* a behavior was introduced. These are facts about the past and
 must stay put. Currently:
 
 - `README.md` — *"Since v0.7.1 the default mode stores each `IQData` as two bytes

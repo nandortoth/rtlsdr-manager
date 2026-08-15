@@ -32,16 +32,16 @@ Analyze the staged changes and their context (what the code does, why it was cha
 
 | Verb | Use when… |
 |------|-----------|
-| `Fix` ★ | Correcting a bug or wrong behaviour |
+| `Fix` ★ | Correcting a bug or wrong behavior |
 | `Add` ★ | Introducing wholly new functionality, files, or tests |
-| `Update` ★ | Modifying existing behaviour, configuration, or docs |
+| `Update` ★ | Modifying existing behavior, configuration, or docs |
 | `Optimize` ★ | Reducing CPU, allocations, or memory on a hot path |
 | `Harden` ★ | Making lifecycle/teardown/error paths robust against edge cases |
 | `Support` ★ | Enabling a new platform, tuner, distribution, or target framework |
 | `Bump` ★ | Advancing the version number |
 | `Document` | Adding or correcting documentation and XML doc comments |
 | `Implement` | Building a significant new capability |
-| `Refactor` | Restructuring without changing behaviour |
+| `Refactor` | Restructuring without changing behavior |
 | `Improve` | Enhancing quality or readability |
 | `Clean up` | Tidying several small, related loose ends |
 | `Remove` | Deleting code, files, or features |

@@ -86,7 +86,58 @@ violating them:
    `rtlsdr_set_freq_correction` means "value unchanged", not an error).
 
 The upstream C source is checked out at `../rtl-sdr` (tag `v2.0.3`). Consult it directly
-rather than guessing at native behaviour.
+rather than guessing at native behavior.
+
+## Code and Documentation Conventions
+
+These apply to code comments, XML documentation, commit messages, `CHANGELOG.md`, and the
+`docs/` guides.
+
+### American English
+
+Always use American English spelling: *behavior*, *synchronization*, *initialize*,
+*recognize*, *optimize*, *canceled*, *center*, *analyze*, *license* (noun and verb).
+Not *behavior*, *synchronization*, *initialize*, *center*, *licence*.
+
+### Punctuation between connected clauses
+
+When two clauses are closely connected, join them with a semicolon or a colon rather than a
+dash. A colon introduces an explanation or a list; a semicolon links two independent but
+related statements.
+
+❌ `// Rounding avoids truncation — a plain cast would turn 49.6 into 495`
+✅ `// Rounding avoids truncation: a plain cast would turn 49.6 into 495`
+
+❌ `// The buffer is pooled — the caller must return it exactly once`
+✅ `// The buffer is pooled; the caller must return it exactly once`
+
+Dashes are still fine for genuine parenthetical asides and for ranges.
+
+### Do not expose `librtlsdr` in customer-facing documentation
+
+**The point of this library is to hide the native layer.** A consumer should be able to use
+the public API without knowing that `librtlsdr` exists, how it encodes values, or what its
+return codes mean. So in **public** XML documentation (`public` and `protected` members, and
+public type summaries), describe behavior in terms of *the device* and *this API*:
+
+❌ `librtlsdr expresses gain in tenths of a dB; this property converts.`
+✅ `Gain is expressed in dB. Only the steps listed by SupportedTunerGains are accepted.`
+
+❌ `librtlsdr returns its cached value, which is 0 until a gain is written.`
+✅ `Reading the gain before one has been set throws; set TunerGain first.`
+
+**Two deliberate exceptions**, because they are user-actionable rather than implementation
+detail:
+
+1. **Installation prerequisites** — the consumer must install the native library, so the
+   README, `docs/`, and any "device could not be opened" guidance may name it.
+2. **The KerberosSDR fork requirement** — `FrequencyDitheringMode` and `SetGPIO` only work
+   against `rtl-sdr-kerberos`. A consumer who does not know this cannot diagnose the
+   failure, so those members keep their note and link.
+
+**`internal` and `private` members are exempt** and *should* name native functions, error
+codes, and upstream quirks: that is precisely where the reasoning belongs, and it is not
+shipped to consumers. Keep the detail; just move it inward.
 
 ## Git Rules
 
@@ -118,7 +169,7 @@ heading. It follows [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
 Beware historical version references in prose (e.g. *"Since v0.7.1 the default mode stores
-each `IQData` as two bytes"* in `README.md`). Those record when a behaviour was introduced
+each `IQData` as two bytes"* in `README.md`). Those record when a behavior was introduced
 and must **not** be bumped.
 
 ## Domain Terminology
@@ -126,7 +177,7 @@ and must **not** be bumped.
 | Term | Meaning |
 |------|---------|
 | I/Q | In-phase and Quadrature — the complex baseband sample pair the device delivers |
-| Offset binary | The device's 8-bit sample encoding, centred near 127 (subtract before use) |
+| Offset binary | The device's 8-bit sample encoding, centered near 127 (subtract before use) |
 | RTL2832U | The demodulator/USB chip common to all supported dongles; owns the GPO (GPIO) register |
 | Tuner | The RF front-end chip (E4000, FC0012, FC0013, FC2580, R820T, R828D) |
 | AGC | Automatic Gain Control — the RTL2832U's internal digital AGC, distinct from tuner gain mode |
