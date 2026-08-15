@@ -75,14 +75,11 @@ dotnet build --configuration Release
 ### Running Tests
 
 ```bash
-# Run all tests (when available)
+# Run all tests
 dotnet test
 
 # Run tests with detailed output
 dotnet test --verbosity detailed
-
-# Run tests with coverage (if configured)
-dotnet test --collect:"XPlat Code Coverage"
 ```
 
 The automated suite covers only hardware-independent components, so it needs no RTL-SDR
@@ -106,12 +103,12 @@ Each check prints `PASS`, `FAIL`, or `SKIP`, and the tool exits nonzero if anyth
 A `SKIP` names the reason, usually that the attached tuner cannot exercise that path; some
 checks need a specific tuner, so a clean run on one dongle does not always prove a fix.
 
-The harness restores what it changes. The tuner gain mode is captured on entry and put back
-on exit, including when a check fails, so the device is not left in manual mode at whatever
-gain the last check happened to set. The bias tee is only ever written with `Disabled`,
-because turning power off is always safe, and only on pin 0. The `--biastee-on` flag
-additionally enables it for a moment so the feed voltage can be metered; do not use that flag
-with a passive antenna connected.
+The harness restores what it changes. The tuner gain mode and the direct sampling mode are
+each captured on entry and put back on exit, including when a check fails, so the device is
+not left in manual mode at whatever gain the last check happened to set, or still sampling
+directly. The bias tee is only ever written with `Disabled`, because turning power off is
+always safe, and only on pin 0. The `--biastee-on` flag additionally enables it for a moment
+so the feed voltage can be metered; do not use that flag with a passive antenna connected.
 
 Two properties of the hardware shape those rules, and any check you add has to respect them:
 
@@ -126,6 +123,37 @@ is worse than no tool, because the next person cannot tell which state is real.
 
 **Extend it when you fix something hardware-dependent.** A fix verified only by hand is a fix
 nobody can re-verify later.
+
+#### Adding a check
+
+Each group of checks is an `IHardwareCheck` in `tools/HwVerify/Checks/`:
+
+```csharp
+internal sealed class MyChecks : IHardwareCheck
+{
+    public string Title => "My feature";
+
+    public void Run(RtlSdrManagedDevice device, VerificationReport report)
+    {
+        report.Check("what this asserts",
+            () => /* true when the behavior is correct */,
+            "what should have happened, printed only on failure");
+    }
+}
+```
+
+Register it in `Program.BuildChecks`, which controls the order. Three conventions to follow:
+
+- **Say what the behavior used to be** in the expectation string when a release changed it.
+  A failure then reads as a regression rather than an unexplained mismatch.
+- **Report `SKIP` with a reason** when the attached hardware cannot exercise a path, rather
+  than passing silently. `VerificationReport.Skip` exists for that.
+- **Restore any device state you change**, in a `finally`, and prove it by running the
+  harness twice: the second run must produce the same output as the first.
+
+Order matters in one place. `DirectSamplingChecks` runs after `CenterFrequencyChecks` because
+it relies on the device being tuned above the ADC's reach, which is the case worth exercising
+when direct sampling is switched on.
 
 ### Running Samples
 
@@ -258,6 +286,47 @@ var count = 5;                    // Use explicit type for primitives
 var result = GetSomething();      // Type not obvious
 ```
 
+### Writing Conventions
+
+These apply to code comments, XML documentation, commit messages, `CHANGELOG.md`, and the
+`docs/` guides.
+
+**American English.** *behavior*, *synchronization*, *initialize*, *center*, *canceled*,
+*analyze* — not *behaviour*, *synchronisation*, *initialise*, *centre*, *cancelled*.
+
+**Join connected clauses with a semicolon or a colon, not a dash.** A colon introduces an
+explanation or a list; a semicolon links two related independent statements. Dashes are still
+right for genuine parenthetical asides and for ranges.
+
+```csharp
+// Good
+// Rounding avoids truncation: a plain cast would turn 49.6 into 495
+
+// Avoid
+// Rounding avoids truncation — a plain cast would turn 49.6 into 495
+```
+
+**Do not name `librtlsdr` in public XML documentation.** The point of this library is to hide
+the native layer, and the documentation ships inside the NuGet package, so a leaked
+implementation detail reaches consumers' IntelliSense. Describe behavior in terms of *the
+device* and *this API*:
+
+```csharp
+// Good
+/// Gain is expressed in dB; only the steps listed by SupportedTunerGains are accepted.
+
+// Avoid
+/// librtlsdr expresses gain in tenths of a dB; this property converts.
+```
+
+Two deliberate exceptions, because they are user-actionable rather than implementation
+detail: **installation prerequisites** (the consumer must install the native library) and
+**the KerberosSDR fork requirement** on `FrequencyDitheringMode` and `SetGPIO`.
+
+`internal` and `private` members are exempt, and *should* name native functions, error codes,
+and upstream quirks. That is where the reasoning belongs, and it is not shipped. When a public
+comment needs native detail, move it to an internal member rather than deleting it.
+
 ### XML Documentation
 
 All public APIs must have XML documentation:
@@ -369,7 +438,8 @@ Ensure your PR meets these requirements:
 
 - [ ] Code follows the project's style guidelines (`.editorconfig`)
 - [ ] Code builds without warnings: `dotnet build`
-- [ ] All tests pass (when tests exist)
+- [ ] All tests pass: `dotnet test`
+- [ ] `tools/HwVerify` passes, if the change touches device behavior
 - [ ] New code has XML documentation comments
 - [ ] README.md is updated (if needed)
 - [ ] CHANGELOG.md is updated with your changes
@@ -377,15 +447,21 @@ Ensure your PR meets these requirements:
 
 ### PR Title Format
 
-Use a clear, descriptive title following conventional commits:
+Use the same style as a commit subject: one line, imperative mood, no trailing period, and
+**no conventional-commits prefix** such as `feat:` or `fix:`. Name the API surface affected,
+since consumers read the history to understand an upgrade.
 
 ```
-feat: Add support for async cancellation tokens
-fix: Correct frequency overflow in calculations
-docs: Improve README installation instructions
-refactor: Simplify device manager initialization
-test: Add unit tests for Frequency type
+Add support for async cancellation tokens
+Fix frequency overflow in Frequency arithmetic
+Improve the README installation instructions
+Simplify device manager initialization
+Add unit tests for the Frequency type
 ```
+
+Keep it under 80 characters where you can; up to about 100 is acceptable for a change that
+genuinely needs it. Breaking changes are recorded in `CHANGELOG.md`, marked `**BREAKING**`,
+rather than flagged in the title.
 
 ### PR Description
 
@@ -408,8 +484,14 @@ Include in your PR description:
 
 ### Release Steps
 
-1. **Bump the version** in `src/RtlSdrManager/RtlSdrManager.csproj` (`<Version>`, keeping `<FileVersion>` and `<AssemblyVersion>` in sync).
-2. **Update `CHANGELOG.md`** with the changes for the new version.
+1. **Bump the version.** It appears in more places than the one project file, and they all have to move together:
+   - `src/RtlSdrManager/RtlSdrManager.csproj` — `<Version>`, plus `<FileVersion>` and `<AssemblyVersion>`, which carry a fourth component (`0.8.0.0`).
+   - `src/RtlSdrManager/RtlSdrManager.csproj` — `<PackageReleaseNotes>`, trimmed to the current version only, with its release date.
+   - `samples/RtlSdrManager.Samples/RtlSdrManager.Samples.csproj` — `<Version>`, `<FileVersion>`, `<AssemblyVersion>` and `<ProductVersion>`. The samples version tracks the library rather than moving independently.
+   - `README.md` — the `<PackageReference … Version="…" />` install example.
+
+   Leave historical references alone: prose such as *"Since v0.7.1 the default mode stores each `IQData` as two bytes"* records when a behavior was introduced and stays put.
+2. **Update `CHANGELOG.md`** — add a dated section, a row in the Version History Summary table, and a release-tag footnote link at the bottom. Mark incompatible changes `**BREAKING**`.
 3. **Build the packages** — this cleans `artifacts/` and produces the `.nupkg` and `.snupkg`:
    ```bash
    ./build.sh

@@ -390,12 +390,21 @@ dotnet build
 # Run the test suite
 dotnet test
 
+# Verify behavior that needs a real device (attach a dongle first)
+dotnet run --project tools/HwVerify
+
 # Create NuGet packages
 dotnet pack --configuration Release
 
 # Or use the convenience script
 ./build.sh
 ```
+
+The test suite covers only hardware-independent components, so it needs no dongle and no
+`librtlsdr` installation. Everything that depends on a device is checked by `tools/HwVerify`
+instead, which opens the first device, prints `PASS`/`FAIL`/`SKIP` per check, and exits
+nonzero if anything failed. See the [Contributing Guide](CONTRIBUTING.md#hardware-verification)
+for what it changes on the device and how to add checks.
 
 ### Build Output
 

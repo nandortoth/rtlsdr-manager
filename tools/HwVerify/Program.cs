@@ -16,13 +16,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Threading;
-using RtlSdrManager.Exceptions;
 using RtlSdrManager.Hardware;
-using RtlSdrManager.Modes;
+using RtlSdrManager.Tools.HwVerify.Checks;
 
 namespace RtlSdrManager.Tools.HwVerify;
 
@@ -35,12 +30,17 @@ namespace RtlSdrManager.Tools.HwVerify;
 /// attach a dongle, run it before cutting a release, and extend it whenever a fix depends on
 /// hardware. It exits nonzero on any failure, so it also works as a release gate.
 /// <para>
-/// The harness restores what it changes. The tuner gain mode is captured on entry and put
-/// back on exit, including on the failure path. The bias tee is only ever written with
-/// <see cref="BiasTeeModes.Disabled"/>, and only on pin 0, because setting a pin also
+/// Adding checks means writing an <see cref="IHardwareCheck"/> in the <c>Checks</c> folder and
+/// registering it in <see cref="BuildChecks"/>. Each one is responsible for restoring whatever
+/// device state it changes.
+/// </para>
+/// <para>
+/// The harness restores what it changes. Gain mode and sampling mode are captured on entry and
+/// put back on exit, including on the failure path. The bias tee is only ever written with
+/// <see cref="Modes.BiasTeeModes.Disabled"/>, and only on pin 0, because setting a pin also
 /// switches it to output mode and nothing clears that when the device is closed. Passing
-/// <see cref="BiasTeeOnFlag"/> additionally tests enabling the bias tee, which must not be
-/// done with a passive antenna connected.
+/// <see cref="BiasTeeChecks.BiasTeeOnFlag"/> additionally tests enabling the bias tee, which
+/// must not be done with a passive antenna connected.
 /// </para>
 /// <para>
 /// Two things are still worth knowing. Device state does not survive a replug, so unplugging
@@ -49,30 +49,8 @@ namespace RtlSdrManager.Tools.HwVerify;
 /// the pin back is not possible.
 /// </para>
 /// </remarks>
-internal static partial class Program
+internal static class Program
 {
-    /// <summary>Standard output file descriptor.</summary>
-    private const int StdOut = 1;
-
-    /// <summary>Standard error file descriptor, where the driver writes its diagnostics.</summary>
-    private const int StdErr = 2;
-
-    /// <summary>Open for writing only. The file itself is created through .NET beforehand.</summary>
-    private const int O_WRONLY = 0x0001;
-
-    [LibraryImport("libc", EntryPoint = "dup", SetLastError = true)]
-    private static partial int NativeDup(int fd);
-
-    [LibraryImport("libc", EntryPoint = "dup2", SetLastError = true)]
-    private static partial int NativeDup2(int oldFd, int newFd);
-
-    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
-    private static partial int NativeClose(int fd);
-
-    [LibraryImport("libc", EntryPoint = "open", SetLastError = true,
-        StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int NativeOpen(string path, int flags);
-
     /// <summary>
     /// Exit code reported when every check that ran passed.
     /// </summary>
@@ -90,31 +68,20 @@ internal static partial class Program
     private const int ExitNoDevice = 2;
 
     /// <summary>
-    /// Opt-in flag for the bias tee power-on check.
-    /// </summary>
-    private const string BiasTeeOnFlag = "--biastee-on";
-
-    /// <summary>
     /// Friendly name the device under test is opened under.
     /// </summary>
     private const string DeviceName = "dut";
 
     /// <summary>
-    /// Tolerance for comparing gains in dB. The device works in tenths of a dB, so anything
-    /// well below 0.1 separates two adjacent steps without tripping on float representation.
+    /// Entry point. Opens the first device and runs every check against it.
     /// </summary>
-    private const double GainTolerance = 0.001;
-
-    /// <summary>
-    /// Entry point. Opens the first device and runs every applicable check against it.
-    /// </summary>
-    /// <param name="args">Command line arguments; see <see cref="BiasTeeOnFlag"/>.</param>
+    /// <param name="args">Command line arguments; see <see cref="BiasTeeChecks.BiasTeeOnFlag"/>.</param>
     /// <returns>
     /// <see cref="ExitSuccess"/>, <see cref="ExitFailure"/>, or <see cref="ExitNoDevice"/>.
     /// </returns>
     public static int Main(string[] args)
     {
-        bool biasTeeOn = args.Contains(BiasTeeOnFlag);
+        bool biasTeeOn = args.Contains(BiasTeeChecks.BiasTeeOnFlag);
 
         // The device chatter would interleave with the check results and make them hard to
         // read, and it is not what this tool is verifying.
@@ -144,531 +111,46 @@ internal static partial class Program
         {
             RtlSdrManagedDevice device = manager[DeviceName];
 
-            // Read the tuner once: several checks only apply to particular tuners, and the
-            // getter queries the device on every access.
+            // The tuner type is cached on the device, so the checks read it themselves; this
+            // is only for the banner.
             TunerTypes tuner = device.TunerType;
 
             Console.WriteLine($"Device under test: index 0, tuner = {tuner}");
             Console.WriteLine();
 
-            VerifyTunerGain(device, tuner, report);
-            Console.WriteLine();
-            VerifyCenterFrequency(device, tuner, report);
-            Console.WriteLine();
-            VerifyDirectSampling(device, report);
-            Console.WriteLine();
-            VerifyConsoleSuppression(device, report);
-            Console.WriteLine();
-            VerifyBiasTeeGpio(device, tuner, report, biasTeeOn);
+            foreach (IHardwareCheck check in BuildChecks(biasTeeOn))
+            {
+                Console.WriteLine(check.Title);
+                check.Run(device, report);
+                Console.WriteLine();
+            }
         }
         finally
         {
             manager.CloseManagedDevice(DeviceName);
         }
 
-        Console.WriteLine();
         report.PrintSummary();
 
         return report.HasFailures ? ExitFailure : ExitSuccess;
     }
 
     /// <summary>
-    /// Verify tuner gain behavior, including the steps the R820T and R828D report.
+    /// The checks to run, in order.
     /// </summary>
-    /// <param name="device">The device under test, which this method switches to manual gain mode.</param>
-    /// <param name="tuner">Tuner type of the device under test.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
+    /// <param name="biasTeeOn">Whether the bias tee power-on check was requested.</param>
+    /// <returns>The checks, in the order they should run.</returns>
     /// <remarks>
-    /// The R82xx family is singled out because its lowest step is <c>0.0</c> dB, a value this
-    /// library once treated as an error marker. The checks below pin that down from both
-    /// sides: the step is offered, accepted, and reads back.
-    /// <para>
-    /// These checks switch the tuner to manual gain control and move the gain around, so the
-    /// original gain mode is captured on entry and restored on the way out. Without that the
-    /// device would be left in manual mode at maximum gain, which is a poor state to hand to
-    /// whatever the operator runs next.
-    /// </para>
+    /// Order matters in one place: the direct sampling checks rely on the center frequency
+    /// checks having left the device tuned above the ADC's reach, which is the case worth
+    /// exercising when direct sampling is switched on.
     /// </remarks>
-    private static void VerifyTunerGain(RtlSdrManagedDevice device, TunerTypes tuner, VerificationReport report)
-    {
-        Console.WriteLine("Tuner gain");
-
-        bool isR82xx = tuner is TunerTypes.R820T or TunerTypes.R828D;
-
-        // Captured before anything is changed, and restored in the finally below.
-        TunerGainModes originalGainMode = device.TunerGainMode;
-
-        try
-        {
-            VerifyTunerGainCore(device, isR82xx, tuner, report);
-        }
-        finally
-        {
-            RestoreGainMode(device, originalGainMode);
-        }
-    }
-
-    /// <summary>
-    /// The tuner gain checks themselves, with the caller owning state restoration.
-    /// </summary>
-    /// <param name="device">The device under test, switched to manual gain mode here.</param>
-    /// <param name="isR82xx">True when the tuner is an R820T or R828D.</param>
-    /// <param name="tuner">Tuner type, used only to explain a skip.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
-    private static void VerifyTunerGainCore(RtlSdrManagedDevice device, bool isR82xx,
-        TunerTypes tuner, VerificationReport report)
-    {
-        // Manual mode is a precondition for every gain check: the property refuses to work
-        // while the tuner runs its own gain control.
-        device.TunerGainMode = TunerGainModes.Manual;
-
-        report.Check("reading TunerGain before setting it throws InvalidOperationException",
-            () => VerificationReport.Throws<InvalidOperationException>(() => _ = device.TunerGain),
-            "InvalidOperationException; it was RtlSdrLibraryExecutionException before 0.8.0");
-
-        List<double> gains = device.SupportedTunerGains;
-        Console.WriteLine($"        SupportedTunerGains.Count = {gains.Count}");
-        Console.WriteLine($"        min = {gains.Min()} dB, max = {gains.Max()} dB");
-
-        if (isR82xx)
-        {
-            report.Check("the R82xx gain table is reported in full",
-                () => gains.Count == 29,
-                "29 entries; it was 28 before 0.8.0, with 0.0 filtered out");
-
-            report.Check("0.0 dB is present in SupportedTunerGains",
-                () => gains.Contains(0.0),
-                "the list contains 0.0");
-
-            report.Check("TunerGain = 0.0 is accepted",
-                () =>
-                {
-                    device.TunerGain = 0.0;
-                    return true;
-                },
-                "no exception; it threw ArgumentOutOfRangeException before 0.8.0");
-
-            report.Check("TunerGain reads back 0.0 after setting it",
-                () => Math.Abs(device.TunerGain) < GainTolerance,
-                "0.0; it threw RtlSdrLibraryExecutionException before 0.8.0");
-
-            report.Check("SetMinimumTunerGain selects 0.0 dB",
-                () =>
-                {
-                    device.SetMinimumTunerGain();
-                    return Math.Abs(device.TunerGain) < GainTolerance;
-                },
-                "0.0 dB; it selected 0.9 dB before 0.8.0");
-        }
-        else
-        {
-            report.Skip("R82xx gain table checks", $"the tuner is {tuner}, not R820T or R828D");
-        }
-
-        // Applies to every tuner with gain control: guards against the fix for the 0.0 dB
-        // case having broken the ordinary path.
-        report.Check("SetMaximumTunerGain round-trips the highest supported gain",
-            () =>
-            {
-                device.SetMaximumTunerGain();
-                return Math.Abs(device.TunerGain - gains.Max()) < GainTolerance;
-            },
-            $"{gains.Max()} dB");
-
-        // 49.5 dB sits between two real R82xx steps, so it exercises rejection without
-        // depending on the table's exact contents.
-        report.Check("an unsupported gain step is still rejected",
-            () => VerificationReport.Throws<ArgumentOutOfRangeException>(() => device.TunerGain = 49.5),
-            "ArgumentOutOfRangeException, because 49.5 dB is not a supported step");
-    }
-
-    /// <summary>
-    /// Put the tuner back under the gain control it was using before the checks ran.
-    /// </summary>
-    /// <param name="device">The device under test.</param>
-    /// <param name="originalGainMode">The gain mode captured before the checks ran.</param>
-    /// <remarks>
-    /// Best effort by design: a failure to restore must not mask the check results, which are
-    /// the point of the run. Restoring the mode is enough, because a gain value only applies
-    /// in manual mode, and the tuner picks its own the moment automatic control resumes.
-    /// </remarks>
-    private static void RestoreGainMode(RtlSdrManagedDevice device, TunerGainModes originalGainMode)
-    {
-        try
-        {
-            device.TunerGainMode = originalGainMode;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"  WARN  could not restore the tuner gain mode to " +
-                              $"{originalGainMode}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Verify that the tuner's reported frequency coverage matches what the device accepts.
-    /// </summary>
-    /// <param name="device">The device under test, left tuned to the middle of its range.</param>
-    /// <param name="tuner">Tuner type of the device under test.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
-    /// <remarks>
-    /// The coverage table is unit tested on its own; what needs hardware is the agreement
-    /// between the table and the device. Tuning to a range boundary is the useful check,
-    /// because that is where a wrong table shows up first.
-    /// </remarks>
-    private static void VerifyCenterFrequency(RtlSdrManagedDevice device, TunerTypes tuner,
-        VerificationReport report)
-    {
-        Console.WriteLine("Center frequency");
-
-        IReadOnlyList<FrequencyRange> ranges = device.SupportedFrequencyRanges;
-        Console.WriteLine($"        SupportedFrequencyRanges = {string.Join(" and ", ranges)}");
-
-        report.Check("the tuner reports at least one frequency range",
-            () => ranges.Count > 0,
-            "a non-empty range list from SupportedFrequencyRanges");
-
-        if (ranges.Count == 0)
-        {
-            return;
-        }
-
-        // The reported bounds must be reachable on the device, otherwise the table is wrong.
-        Frequency lowest = ranges[0].Minimum;
-        Frequency highest = ranges[^1].Maximum;
-
-        report.Check($"the device tunes to its lowest reported frequency ({lowest.MHz} MHz)",
-            () =>
-            {
-                device.CenterFrequency = lowest;
-                return true;
-            },
-            "no exception; a failure here means the table claims more coverage than the tuner has");
-
-        report.Check($"the device tunes to its highest reported frequency ({highest.MHz} MHz)",
-            () =>
-            {
-                device.CenterFrequency = highest;
-                return true;
-            },
-            "no exception; a failure here means the table claims more coverage than the tuner has");
-
-        report.Check("a frequency below the reported range is rejected without touching the device",
-            () => VerificationReport.Throws<ArgumentOutOfRangeException>(
-                () => device.CenterFrequency = Frequency.FromHz(lowest.Hz - 1)),
-            "ArgumentOutOfRangeException naming the supported ranges");
-
-        if (TunerCapabilities.GetUnreliableRanges(tuner).Count == 0)
-        {
-            report.Skip("a frequency in a known unreliable range reports a useful error",
-                $"the {tuner} has no range with device-dependent behavior; this needs an E4000");
-        }
-    }
-
-    /// <summary>
-    /// Verify that direct sampling reaches frequencies the tuner cannot.
-    /// </summary>
-    /// <param name="device">The device under test, restored to its original mode on exit.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
-    /// <remarks>
-    /// This is the check that needs hardware most. The demodulator accepts an out of range
-    /// frequency without complaint and quietly receives something else, so nothing but a real
-    /// device can confirm that the limit is enforced in the right place.
-    /// <para>
-    /// Direct sampling is volatile register state, not a stored setting: turning it off
-    /// restores every register the enable path touched, and unplugging the device would clear
-    /// it regardless. The original mode is captured and restored here anyway.
-    /// </para>
-    /// </remarks>
-    private static void VerifyDirectSampling(RtlSdrManagedDevice device, VerificationReport report)
-    {
-        Console.WriteLine("Direct sampling");
-
-        DirectSamplingModes originalMode = device.DirectSamplingMode;
-
-        try
-        {
-            // Entered from whatever frequency the previous checks left behind, which is well
-            // above the ADC's reach. That is the interesting case: the frequency has to be
-            // normalized rather than silently truncated.
-            device.DirectSamplingMode = DirectSamplingModes.InPhaseADCInputEnabled;
-
-            report.Check("enabling direct sampling leaves a frequency the ADC can actually reach",
-                () => device.SupportedFrequencyRanges[0].Contains(device.CenterFrequency),
-                "the center frequency was reset to 0 Hz, because the previous one was out of reach");
-
-            report.Check("SupportedFrequencyRanges switches to the ADC range",
-                () => device.SupportedFrequencyRanges.Count == 1 &&
-                      device.SupportedFrequencyRanges[0].Minimum.Hz == 0,
-                "a single range starting at 0 Hz, instead of the bypassed tuner's range");
-
-            Console.WriteLine($"        SupportedFrequencyRanges = " +
-                              $"{string.Join(" and ", device.SupportedFrequencyRanges)}");
-
-            report.Check("the 40 m amateur band is reachable (7.1 MHz)",
-                () =>
-                {
-                    device.CenterFrequency = Frequency.FromMHz(7.1);
-                    return device.CenterFrequency.Hz == 7_100_000;
-                },
-                "7.1 MHz set and read back; this threw ArgumentOutOfRangeException before 0.8.0");
-
-            report.Check("0 Hz is a valid frequency and reads back",
-                () =>
-                {
-                    device.CenterFrequency = Frequency.FromHz(0u);
-                    return device.CenterFrequency.Hz == 0;
-                },
-                "0 Hz accepted and returned; reading it threw before 0.8.0");
-
-            report.Check("a frequency beyond the ADC's reach is refused rather than truncated",
-                () => VerificationReport.Throws<ArgumentOutOfRangeException>(
-                    () => device.CenterFrequency = Frequency.FromMHz(20)),
-                "ArgumentOutOfRangeException; the device would otherwise receive a different " +
-                "frequency without reporting anything");
-        }
-        finally
-        {
-            RestoreDirectSamplingMode(device, originalMode);
-        }
-    }
-
-    /// <summary>
-    /// Put the device back into the sampling mode it was using before the checks ran.
-    /// </summary>
-    /// <param name="device">The device under test.</param>
-    /// <param name="originalMode">The mode captured before the checks ran.</param>
-    /// <remarks>
-    /// Best effort, like the other restorations: leaving direct sampling on would be
-    /// surprising, but failing to report the check results would be worse. Turning it off
-    /// re-applies the current frequency to the tuner, which the checks have deliberately left
-    /// at a value only the ADC can reach, so that failure is expected and handled here.
-    /// </remarks>
-    private static void RestoreDirectSamplingMode(RtlSdrManagedDevice device,
-        DirectSamplingModes originalMode)
-    {
-        try
-        {
-            device.DirectSamplingMode = originalMode;
-        }
-        catch (RtlSdrLibraryExecutionException)
-        {
-            // Expected: the mode did change, only the re-tune failed. Give the tuner a
-            // frequency it can reach so the device is left usable.
-            try
-            {
-                device.CenterFrequency = device.SupportedFrequencyRanges[0].Minimum;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"  WARN  could not restore a tunable center frequency: {ex.Message}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"  WARN  could not restore the direct sampling mode to " +
-                              $"{originalMode}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Verify that console suppression hides the driver's own diagnostics.
-    /// </summary>
-    /// <param name="device">The device under test, left in the mode it arrived in.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
-    /// <remarks>
-    /// The unit tests prove the redirection mechanism works. Only a device proves what the
-    /// feature is for, because only a device makes the driver print anything. Changing the
-    /// direct sampling mode is the probe: the driver reports it on standard error every time,
-    /// whether or not the mode actually changes.
-    /// <para>
-    /// The check runs twice, and the first run is the one that makes the second meaningful.
-    /// Asserting that nothing was captured proves little on its own, since a broken capture
-    /// would look identical; observing the message with suppression off establishes that the
-    /// capture works before asking whether suppression removes it.
-    /// </para>
-    /// </remarks>
-    private static void VerifyConsoleSuppression(RtlSdrManagedDevice device, VerificationReport report)
-    {
-        Console.WriteLine("Console suppression");
-
-        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
-        {
-            report.Skip("the driver's diagnostics are hidden while suppression is on",
-                "this check redirects POSIX file descriptors, so it only runs on Linux and macOS");
-            return;
-        }
-
-        // The driver announces every direct sampling change, so setting the mode it is already
-        // in still produces a line without disturbing the device.
-        DirectSamplingModes currentMode = device.DirectSamplingMode;
-
-        try
-        {
-            string withoutSuppression = CaptureNativeOutput(() =>
-            {
-                RtlSdrDeviceManager.SuppressLibraryConsoleOutput = false;
-                device.DirectSamplingMode = currentMode;
-            });
-
-            report.Check("the driver's diagnostics are visible while suppression is off",
-                () => withoutSuppression.Contains("direct sampling", StringComparison.OrdinalIgnoreCase),
-                "the driver's message about the sampling mode; without this the next check " +
-                "would pass even if the capture were broken");
-
-            string withSuppression = CaptureNativeOutput(() =>
-            {
-                RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
-                device.DirectSamplingMode = currentMode;
-            });
-
-            report.Check("the driver's diagnostics are hidden while suppression is on",
-                () => !withSuppression.Contains("direct sampling", StringComparison.OrdinalIgnoreCase),
-                "no output at all; the same operation printed a message a moment ago");
-        }
-        finally
-        {
-            // The harness runs with suppression on throughout; put it back.
-            RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
-        }
-    }
-
-    /// <summary>
-    /// Run an action with both standard streams pointed at a file, and return what was written.
-    /// </summary>
-    /// <param name="scenario">The action to run while output is captured.</param>
-    /// <returns>Everything the action wrote to standard output or standard error.</returns>
-    /// <remarks>
-    /// Both descriptors are captured because the driver writes its diagnostics to standard
-    /// error while the suppressor covers both. Restoring in a finally is not optional: leaving
-    /// either descriptor pointed at the file would discard the rest of this run's report.
-    /// </remarks>
-    private static string CaptureNativeOutput(Action scenario)
-    {
-        string capturePath = Path.Combine(Path.GetTempPath(),
-            $"hwverify-suppression-{Guid.NewGuid():N}.txt");
-
-        // Create through .NET so the native open needs no creation flags or mode bits.
-        File.WriteAllText(capturePath, string.Empty);
-
-        int savedStdOut = NativeDup(StdOut);
-        int savedStdErr = NativeDup(StdErr);
-
-        try
-        {
-            int captureFd = NativeOpen(capturePath, O_WRONLY);
-            if (captureFd < 0)
-            {
-                return string.Empty;
-            }
-
-            _ = NativeDup2(captureFd, StdOut);
-            _ = NativeDup2(captureFd, StdErr);
-            _ = NativeClose(captureFd);
-
-            scenario();
-        }
-        finally
-        {
-            _ = NativeDup2(savedStdOut, StdOut);
-            _ = NativeDup2(savedStdErr, StdErr);
-            _ = NativeClose(savedStdOut);
-            _ = NativeClose(savedStdErr);
-        }
-
-        string captured = File.ReadAllText(capturePath);
-        File.Delete(capturePath);
-
-        return captured;
-    }
-
-    /// <summary>
-    /// Verify bias tee GPIO behavior: pin validation, and that no tuner is refused.
-    /// </summary>
-    /// <param name="device">The device under test.</param>
-    /// <param name="tuner">Tuner type of the device under test.</param>
-    /// <param name="report">Report collecting the outcomes.</param>
-    /// <param name="biasTeeOn">
-    /// When true, briefly enables the bias tee so the feed voltage can be metered. Only pass
-    /// this with the antenna disconnected.
-    /// </param>
-    /// <remarks>
-    /// The bias tee control pins belong to the demodulator rather than the tuner, so these
-    /// calls should succeed on any device. That is the claim this method exists to check;
-    /// note it cannot be proven on an R820T, which the removed restriction already allowed.
-    /// <para>
-    /// Only pin 0 is ever driven, and only to <see cref="BiasTeeModes.Disabled"/>. Setting a
-    /// pin also switches it to output mode, and nothing resets that when the device is closed,
-    /// so probing an unrelated pin would leave it reconfigured with no way to undo it. Pin 0
-    /// is the pin the bias tee already uses, and driving it low is its safe state. It is also
-    /// sufficient: the restriction this checks for rejected every pin on the wrong tuner, so
-    /// one accepted call disproves it.
-    /// </para>
-    /// </remarks>
-    private static void VerifyBiasTeeGpio(RtlSdrManagedDevice device, TunerTypes tuner,
-        VerificationReport report, bool biasTeeOn)
-    {
-        Console.WriteLine("Bias tee GPIO");
-
-        // Both bounds are checked: an off-by-one at either end would let a bad pin number
-        // reach the device, where it would silently address the wrong bit.
-        report.Check("GPIO pin 8 throws ArgumentOutOfRangeException",
-            () => VerificationReport.Throws<ArgumentOutOfRangeException>(
-                () => device.SetBiasTeeGPIO(8, BiasTeeModes.Disabled)),
-            "ArgumentOutOfRangeException; it was RtlSdrLibraryExecutionException before 0.8.0");
-
-        report.Check("GPIO pin -1 throws ArgumentOutOfRangeException",
-            () => VerificationReport.Throws<ArgumentOutOfRangeException>(
-                () => device.SetBiasTeeGPIO(-1, BiasTeeModes.Disabled)),
-            "ArgumentOutOfRangeException");
-
-        // Pin 0 only: see the remarks above on why no other pin is probed.
-        report.Check("SetBiasTeeGPIO(0, Disabled) succeeds",
-            () =>
-            {
-                device.SetBiasTeeGPIO(0, BiasTeeModes.Disabled);
-                return true;
-            },
-            "no exception; the removed tuner restriction rejected this on the wrong tuner");
-
-        if (tuner is TunerTypes.R820T or TunerTypes.R828D)
-        {
-            report.Skip("the bias tee works on a tuner other than the R820T",
-                $"this device is {tuner}, which the removed restriction already permitted. " +
-                "Confirming the fix needs an FC0012, FC0013 or E4000 dongle");
-        }
-
-        if (biasTeeOn)
-        {
-            report.Check("SetBiasTee(Enabled) followed by Disabled succeeds",
-                () =>
-                {
-                    device.SetBiasTee(BiasTeeModes.Enabled);
-
-                    // Long enough to get a meter on the feed, short enough that nothing is
-                    // left powered by accident if the run is interrupted here.
-                    Thread.Sleep(300);
-                    device.SetBiasTee(BiasTeeModes.Disabled);
-                    return true;
-                },
-                "no exception; meter the feed during the 300 ms window to confirm the voltage");
-        }
-        else
-        {
-            report.Skip("bias tee power-on test",
-                $"pass {BiasTeeOnFlag} to run it, and only with the antenna disconnected");
-        }
-
-        // Closing the device does not clear the bias tee pin, so an interrupted or failed run
-        // could otherwise leave the feed powered. This is the best effort by design: a failure
-        // here must not mask the results above.
-        try
-        {
-            device.SetBiasTee(BiasTeeModes.Disabled);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"  WARN  could not turn the bias tee off on the way out: {ex.Message}");
-        }
-    }
+    private static IEnumerable<IHardwareCheck> BuildChecks(bool biasTeeOn) =>
+    [
+        new TunerGainChecks(),
+        new CenterFrequencyChecks(),
+        new DirectSamplingChecks(),
+        new ConsoleSuppressionChecks(),
+        new BiasTeeChecks(biasTeeOn)
+    ];
 }
