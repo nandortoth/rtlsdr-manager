@@ -128,6 +128,8 @@ internal static class Program
 
             VerifyTunerGain(device, tuner, report);
             Console.WriteLine();
+            VerifyCenterFrequency(device, tuner, report);
+            Console.WriteLine();
             VerifyBiasTeeGpio(device, tuner, report, biasTeeOn);
         }
         finally
@@ -271,6 +273,66 @@ internal static class Program
         {
             Console.WriteLine($"  WARN  could not restore the tuner gain mode to " +
                               $"{originalGainMode}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Verify that the tuner's reported frequency coverage matches what the device accepts.
+    /// </summary>
+    /// <param name="device">The device under test, left tuned to the middle of its range.</param>
+    /// <param name="tuner">Tuner type of the device under test.</param>
+    /// <param name="report">Report collecting the outcomes.</param>
+    /// <remarks>
+    /// The coverage table is unit tested on its own; what needs hardware is the agreement
+    /// between the table and the device. Tuning to a range boundary is the useful check,
+    /// because that is where a wrong table shows up first.
+    /// </remarks>
+    private static void VerifyCenterFrequency(RtlSdrManagedDevice device, TunerTypes tuner,
+        VerificationReport report)
+    {
+        Console.WriteLine("Center frequency");
+
+        IReadOnlyList<FrequencyRange> ranges = device.SupportedFrequencyRanges;
+        Console.WriteLine($"        SupportedFrequencyRanges = {string.Join(" and ", ranges)}");
+
+        report.Check("the tuner reports at least one frequency range",
+            () => ranges.Count > 0,
+            "a non-empty range list from SupportedFrequencyRanges");
+
+        if (ranges.Count == 0)
+        {
+            return;
+        }
+
+        // The reported bounds must be reachable on the device, otherwise the table is wrong.
+        Frequency lowest = ranges[0].Minimum;
+        Frequency highest = ranges[^1].Maximum;
+
+        report.Check($"the device tunes to its lowest reported frequency ({lowest.MHz} MHz)",
+            () =>
+            {
+                device.CenterFrequency = lowest;
+                return true;
+            },
+            "no exception; a failure here means the table claims more coverage than the tuner has");
+
+        report.Check($"the device tunes to its highest reported frequency ({highest.MHz} MHz)",
+            () =>
+            {
+                device.CenterFrequency = highest;
+                return true;
+            },
+            "no exception; a failure here means the table claims more coverage than the tuner has");
+
+        report.Check("a frequency below the reported range is rejected without touching the device",
+            () => VerificationReport.Throws<ArgumentOutOfRangeException>(
+                () => device.CenterFrequency = Frequency.FromHz(lowest.Hz - 1)),
+            "ArgumentOutOfRangeException naming the supported ranges");
+
+        if (TunerCapabilities.GetUnreliableRanges(tuner).Count == 0)
+        {
+            report.Skip("a frequency in a known unreliable range reports a useful error",
+                $"the {tuner} has no range with device-dependent behavior; this needs an E4000");
         }
     }
 

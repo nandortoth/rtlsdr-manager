@@ -47,7 +47,13 @@
         <PackageReleaseNotes>
             v0.8.0 (2026-08-15):
 
+            ADDED:
+            - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities and
+              FrequencyRange types behind it, describing what each tuner can reach.
+
             FIXED:
+            - The E4000 accepts exactly 1100 and 1250 MHz, which an asymmetric comparison
+              rejected even though both are documented as supported.
             - 0.0 dB is accepted as a tuner gain on the R820T/R828D, where it is the tuner's
               lowest gain step. It was treated as an error value, so SupportedTunerGains
               reported 28 of 29 gains and TunerGain = 0.0 threw.
@@ -62,6 +68,8 @@
             - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
               0..7, instead of RtlSdrLibraryExecutionException.
             - SetMinimumTunerGain() selects 0.0 dB on the R820T/R828D instead of 0.9 dB.
+            - The E4000's 1100 to 1250 MHz gap is no longer rejected up front: its boundaries
+              vary between devices, so the tuner decides and reports the outcome.
 
             See CHANGELOG.md for complete details and previous releases.
         </PackageReleaseNotes>

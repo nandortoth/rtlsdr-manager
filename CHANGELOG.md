@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2026-08-15
 
+### Added
+- `SupportedFrequencyRanges` on `RtlSdrManagedDevice`, and the `TunerCapabilities` /
+  `FrequencyRange` types behind it, describing what each tuner can reach. Symmetric with
+  `SupportedTunerGains`, and useful for building a scanner without hardcoding tuner limits
+
 ### Fixed
+- The E4000 accepts exactly `1100` and `1250` MHz, which an asymmetric comparison rejected
+  even though both are documented as supported
 - `0.0 dB` is now accepted as a tuner gain on the R820T/R828D, where it is the tuner's
   lowest gain step. It was previously treated as an error value, so `SupportedTunerGains`
   reported only 28 of the tuner's 29 gains and `TunerGain = 0.0` threw
@@ -25,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error, classified like the other state errors introduced in 0.7.0
 - `SetMinimumTunerGain()` selects `0.0` dB on the R820T/R828D instead of `0.9` dB, so
   receivers relying on it get slightly less gain
+- The E4000's `1100` to `1250` MHz gap is no longer rejected up front. Its boundaries vary
+  between individual devices, so the tuner is asked to tune and reports whether it managed:
+  frequencies a given device can reach now work, and one it cannot fails with a message
+  explaining the gap rather than a bare error code
+- `CenterFrequency` names the tuner's supported ranges when it rejects a frequency, and
+  `TunerType` is queried once per device instead of on every frequency change
 - **BREAKING**: `SetBiasTeeGPIO()` throws `ArgumentOutOfRangeException` for a pin outside
   `0..7`, instead of `RtlSdrLibraryExecutionException`
 - Bias tee documentation now states that the pin stays powered after the device is closed,

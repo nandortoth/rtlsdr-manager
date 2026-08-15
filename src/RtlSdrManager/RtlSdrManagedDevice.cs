@@ -87,6 +87,12 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     private int[]? _supportedTunerGainsCache;
 
     /// <summary>
+    /// Cached tuner type. The tuner cannot change while the device is open, and the value is
+    /// read on every center frequency change, so it is queried at most once.
+    /// </summary>
+    private TunerTypes? _tunerTypeCache;
+
+    /// <summary>
     /// Last tuner gain (in tenths of a dB) successfully written to the device, or null when
     /// no manual gain has been set in this session. librtlsdr returns 0 from
     /// rtlsdr_get_tuner_gain both for "never set" and for a legitimate 0.0 dB gain, so the
@@ -210,11 +216,21 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <summary>
     /// Get the tuner type of the managed device.
     /// </summary>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <remarks>
+    /// Queried once and cached: the tuner is part of the device and cannot change while it is
+    /// open. An unrecognized tuner is not cached, so the failure is reported on every access
+    /// rather than being remembered.
+    /// </remarks>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner is not recognized.</exception>
     public TunerTypes TunerType
     {
         get
         {
+            if (_tunerTypeCache != null)
+            {
+                return _tunerTypeCache.Value;
+            }
+
             // Get the value from the device.
             TunerTypes tunerType = LibRtlSdr.rtlsdr_get_tuner_type(_deviceHandle!);
 
@@ -227,9 +243,26 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             }
 
             // Return the value.
+            _tunerTypeCache = tunerType;
             return tunerType;
         }
     }
+
+    /// <summary>
+    /// Get the frequency ranges the tuner of this device can reach.
+    /// </summary>
+    /// <remarks>
+    /// These are the ranges <see cref="CenterFrequency"/> accepts. Most tuners report a single
+    /// range; the FC2580 reports two, with a gap between them.
+    /// <para>
+    /// Falling inside a range does not guarantee that this particular device will lock to a
+    /// given frequency: some tuners have regions where that varies between individual devices,
+    /// and those are reported by <see cref="TunerCapabilities.GetUnreliableRanges"/>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner is not recognized.</exception>
+    public IReadOnlyList<FrequencyRange> SupportedFrequencyRanges =>
+        TunerCapabilities.GetTunableRanges(TunerType);
 
     /// <summary>
     /// Set and get the center frequency of the device.
@@ -256,65 +289,18 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         }
         set
         {
-            // Check the frequency range (http://osmocom.org/projects/sdr/wiki/rtl-sdr).
-            bool wrongFrequency = false;
-            switch (TunerType)
-            {
-                // Elonics E4000.
-                case TunerTypes.E4000:
-                    if ((value.MHz < 52 || value.MHz >= 1100) &&
-                        (value.MHz <= 1250 || value.MHz > 2200))
-                    {
-                        wrongFrequency = true;
-                    }
+            TunerTypes tuner = TunerType;
 
-                    break;
-                // Rafael Micro R820T(2)/R828D
-                case TunerTypes.R828D:
-                case TunerTypes.R820T:
-                    if (value.MHz < 24 || value.MHz > 1766)
-                    {
-                        wrongFrequency = true;
-                    }
-
-                    break;
-                // Fitipower FC0012
-                case TunerTypes.FC0012:
-                    if (value.MHz < 22 || value.MHz > 948.6)
-                    {
-                        wrongFrequency = true;
-                    }
-
-                    break;
-                // Fitipower FC0013
-                case TunerTypes.FC0013:
-                    if (value.MHz < 22 || value.MHz > 1100)
-                    {
-                        wrongFrequency = true;
-                    }
-
-                    break;
-                // FCI FC2580
-                case TunerTypes.FC2580:
-                    if ((value.MHz < 146 || value.MHz > 308) &&
-                        (value.MHz < 438 || value.MHz > 924))
-                    {
-                        wrongFrequency = true;
-                    }
-
-                    break;
-                // Unknown
-                default:
-                    wrongFrequency = true;
-                    break;
-            }
-
-            // If the frequency is wrong, throw an exception.
-            if (wrongFrequency)
+            // Reject only what the tuner physically cannot reach. Regions where a tuner is
+            // merely unreliable are left to the device: their boundaries vary between
+            // individual devices, so a fixed check here would refuse frequencies that this
+            // particular device handles perfectly well.
+            if (!TunerCapabilities.IsTunable(tuner, value))
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value,
                     "Problem happened during setting the center frequency of the device. " +
-                    "The given frequency is outside the range supported by the tuner.");
+                    "The given frequency is outside the range supported by the tuner. " +
+                    $"Supported: {TunerCapabilities.DescribeTunableRanges(tuner)}.");
             }
 
             // Set the new value on the device with console suppression.
@@ -325,9 +311,20 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
                 // If we did not get 0, there is an error.
                 if (returnValue != 0)
                 {
+                    // A failure inside a known unreliable region has a specific, actionable
+                    // cause. Say so here rather than leaving the caller with an error code:
+                    // the device's own diagnostics go to the console, which the caller may
+                    // well have suppressed.
+                    string detail = TunerCapabilities.IsUnreliable(tuner, value)
+                        ? " The tuner could not lock to this frequency. It falls within " +
+                          $"{string.Join(" and ", TunerCapabilities.GetUnreliableRanges(tuner))}, " +
+                          "where this tuner often cannot lock; the exact boundaries vary " +
+                          "between individual devices."
+                        : string.Empty;
+
                     throw new RtlSdrLibraryExecutionException(
                         "Problem happened during setting the center frequency of the device. " +
-                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.");
+                        $"Error code: {returnValue}, device index: {DeviceInfo.Index}.{detail}");
                 }
             });
         }
@@ -758,7 +755,7 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
             });
 
             // Remember what the device now holds, so the getter can tell a real 0.0 dB
-            // reading apart from "never set". Only reached when the write succeeded.
+            // reading apart from "never set". Only reached when write succeeded.
             _lastSetTunerGain = gain;
         }
     }

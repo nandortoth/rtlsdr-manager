@@ -436,7 +436,7 @@ This library supports RTL-SDR devices with the following tuners:
 
 | Tuner | Frequency Range | Notes |
 |---|---|---|
-| Elonics E4000 | 52 -- 1100 MHz, 1250 -- 2200 MHz | No longer manufactured |
+| Elonics E4000 | 52 -- 2200 MHz | No longer manufactured. Often cannot lock near 1100 -- 1250 MHz; the exact gap varies by device |
 | Rafael Micro R820T | 24 -- 1766 MHz | Most common, excellent performance |
 | Rafael Micro R828D | 24 -- 1766 MHz | Similar to R820T |
 | Fitipower FC0012 | 22 -- 948.6 MHz | Basic performance |
