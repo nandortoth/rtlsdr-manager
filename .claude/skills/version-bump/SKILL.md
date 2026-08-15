@@ -61,7 +61,22 @@ A pre-release suffix (`0.8.0-rc1`) goes in `<Version>` only; `<FileVersion>` and
 `<AssemblyVersion>` take the numeric part (`0.8.0.0`), since assembly versions cannot carry
 a suffix.
 
-### 2. Changelog (always)
+### 2. Samples project (always)
+
+`samples/RtlSdrManager.Samples/RtlSdrManager.Samples.csproj` — **four** edits:
+
+- `<Version>` → `X.Y.Z`
+- `<FileVersion>` → `X.Y.Z.0`
+- `<AssemblyVersion>` → `X.Y.Z.0`
+- `<ProductVersion>` → `X.Y.Z.0` (note this one exists only here, not in the library project)
+
+The samples version tracks the library rather than moving independently, so it is bumped in
+the same pass. It drifted to 0.7.0 while the library was on 0.7.1 precisely because this step
+did not exist; check it even when the number looks unrelated to the current release.
+
+`tools/HwVerify` carries no version fields and needs no update.
+
+### 3. Changelog (always)
 
 Edit `CHANGELOG.md` — **three** places:
 
@@ -77,12 +92,12 @@ Edit `CHANGELOG.md` — **three** places:
 
 Do **not** touch already-released sections, their table rows, or their footnote links.
 
-### 3. README install example (always)
+### 4. README install example (always)
 
 `README.md` — the `<PackageReference Include="RtlSdrManager" Version="…" />` line in the
 Installation section. Update it regardless of its current value.
 
-### 4. Historical version references — do NOT bump
+### 5. Historical version references — do NOT bump
 
 Some prose records *when* a behavior was introduced. These are facts about the past and
 must stay put. Currently:
@@ -94,7 +109,7 @@ Rule of thumb: if the sentence would still be true after the release, leave it. 
 install/copy-paste example of the current version, update it. When a grep turns up a version
 in a spot not listed in these steps, use judgment and report what you decided.
 
-### 5. Do NOT touch
+### 6. Do NOT touch
 
 - `publish.sh` — derives the version from the `.nupkg` filename at run time; the `0.7.1` in
   its comment is an illustrative parsing example, not a declaration.
@@ -104,17 +119,21 @@ in a spot not listed in these steps, use judgment and report what you decided.
   `Microsoft.SourceLink.GitHub` 8.0.0, xUnit versions.
 - The GPLv3 header blocks (they carry a copyright year, not a version).
 
-### 6. Verify and report
+### 7. Verify and report
 
 Grep for the **previous** version to confirm nothing intended was missed and that the
 remaining hits are deliberate:
 
 ```bash
-grep -rn "<old-version>" README.md CHANGELOG.md src/ docs/ --include="*.md" --include="*.csproj"
+grep -rn "<old-version>" README.md CHANGELOG.md src/ samples/ tools/ docs/ \
+  --include="*.md" --include="*.csproj"
 ```
 
+Note `samples/` in that list: leaving it out is how the samples project silently drifted to
+0.7.0 while the library was on 0.7.1.
+
 Expected surviving hits: the previous release's changelog section, table row and footnote
-link, and any historical prose reference from step 4.
+link, and any historical prose reference from step 5.
 
 Then present a concise summary: old → new version, the files changed, and any version
 occurrences intentionally left. **Do not run any git state-changing command** and do not
@@ -127,6 +146,8 @@ commit.
 - `src/RtlSdrManager/RtlSdrManager.csproj`: `<Version>` `0.7.1` → `0.7.2`;
   `<FileVersion>` / `<AssemblyVersion>` `0.7.1.0` → `0.7.2.0`; `<PackageReleaseNotes>`
   rewritten for `v0.7.2 (2026-08-15)`
+- `samples/RtlSdrManager.Samples/RtlSdrManager.Samples.csproj`: `<Version>` → `0.7.2`;
+  `<FileVersion>` / `<AssemblyVersion>` / `<ProductVersion>` → `0.7.2.0`
 - `CHANGELOG.md`: new `## [0.7.2] - 2026-08-15` section, new summary-table row, new
   footnote link
 - `README.md`: `<PackageReference … Version="0.7.2" />`

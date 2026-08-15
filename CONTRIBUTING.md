@@ -85,6 +85,48 @@ dotnet test --verbosity detailed
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
+The automated suite covers only hardware-independent components, so it needs no RTL-SDR
+device and no `librtlsdr` installation. It runs anywhere.
+
+### Hardware Verification
+
+Behavior that depends on a real device cannot be covered by the test suite. `tools/HwVerify`
+checks it instead: attach a dongle and run it before submitting a change that touches device
+behavior, and before a release.
+
+```bash
+# Open device 0 and verify device-dependent behavior
+dotnet run --project tools/HwVerify
+
+# Also test enabling the bias tee (disconnect the antenna first)
+dotnet run --project tools/HwVerify -- --biastee-on
+```
+
+Each check prints `PASS`, `FAIL`, or `SKIP`, and the tool exits nonzero if anything failed.
+A `SKIP` names the reason, usually that the attached tuner cannot exercise that path; some
+checks need a specific tuner, so a clean run on one dongle does not always prove a fix.
+
+The harness restores what it changes. The tuner gain mode is captured on entry and put back
+on exit, including when a check fails, so the device is not left in manual mode at whatever
+gain the last check happened to set. The bias tee is only ever written with `Disabled`,
+because turning power off is always safe, and only on pin 0. The `--biastee-on` flag
+additionally enables it for a moment so the feed voltage can be metered; do not use that flag
+with a passive antenna connected.
+
+Two properties of the hardware shape those rules, and any check you add has to respect them:
+
+- **The bias tee stays powered after the device is closed.** Nothing clears the pin on
+  teardown, so the harness always disables it on the way out, on the failure path too.
+- **Setting a GPIO pin also switches it to output mode, and that is not reversible from
+  software.** So the harness only ever touches pin 0, the pin the bias tee already uses.
+  Probing an unrelated pin would leave it reconfigured until the dongle is replugged.
+
+**Leave the device as you found it.** A verification tool that quietly reconfigures hardware
+is worse than no tool, because the next person cannot tell which state is real.
+
+**Extend it when you fix something hardware-dependent.** A fix verified only by hand is a fix
+nobody can re-verify later.
+
 ### Running Samples
 
 ```bash

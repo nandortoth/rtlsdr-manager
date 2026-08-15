@@ -12,6 +12,7 @@ Published on NuGet as [`RtlSdrManager`](https://www.nuget.org/packages/RtlSdrMan
 dotnet build                                        # Build entire solution
 dotnet test                                         # Run all tests (hardware-independent)
 dotnet run --project samples/RtlSdrManager.Samples  # Run the demo application
+dotnet run --project tools/HwVerify                 # Verify device behavior (dongle required)
 dotnet pack --configuration Release                 # Create NuGet packages
 ```
 
@@ -27,8 +28,19 @@ Build output goes to `artifacts/packages/` (NuGet packages) and
 `artifacts/binaries/{RtlSdrManager,Samples}/`. The `artifacts/` directory is gitignored.
 
 The test suite requires **no RTL-SDR hardware and no `librtlsdr` installation** — it covers
-only hardware-independent components. Anything touching a device must be verified manually
-with a dongle attached.
+only hardware-independent components.
+
+Anything touching a device is verified instead by `tools/HwVerify`, a console harness that
+opens device 0 and asserts the device-dependent behavior, printing `PASS`/`FAIL`/`SKIP` and
+exiting nonzero on any failure. **Run it with a dongle attached before cutting a release**,
+and extend it whenever a fix depends on hardware. Checks the attached hardware cannot prove
+report `SKIP` with the reason, so an incomplete run is never mistaken for a clean one.
+
+The harness restores what it changes: the tuner gain mode is captured on entry and put back
+on exit, and the bias tee is only written with `Disabled`, on pin 0 only, unless
+`--biastee-on` is passed. **Any new check must leave the device as it found it.** Note that
+`SetBiasTeeGPIO` also switches the pin to output mode, and nothing clears that on close, so
+touching a pin the bias tee does not already use cannot be undone short of a replug.
 
 ## Tech Stack
 
@@ -57,6 +69,7 @@ src/RtlSdrManager/
   Hardware/                       Tuner type definitions
   Exceptions/                     Custom exception types
 tests/RtlSdrManager.Tests/        xUnit suite (hardware-independent only)
+tools/HwVerify/                   Hardware verification harness (dongle required)
 samples/RtlSdrManager.Samples/    Demo1-Demo5 example applications
 docs/                             Per-feature usage guides
 design/icon/                      Package icon sources
@@ -155,14 +168,20 @@ before editing files.
 ## Versioning
 
 The single source of truth is `src/RtlSdrManager/RtlSdrManager.csproj`. A version bump
-touches **four** places in that file plus the docs — see the `version-bump` skill:
+touches five places — see the `version-bump` skill:
 
-1. `<Version>`, `<FileVersion>` and `<AssemblyVersion>` (the latter two carry a `.0` fourth
-   component, e.g. `0.7.1.0`).
-2. `<PackageReleaseNotes>` — trimmed to the current version only, with its release date.
-3. `README.md` — the `<PackageReference … Version="…" />` install example.
-4. `CHANGELOG.md` — a new dated section, a row in the Version History Summary table, and a
+1. `src/RtlSdrManager/RtlSdrManager.csproj`: `<Version>`, `<FileVersion>` and
+   `<AssemblyVersion>` (the latter two carry a `.0` fourth component, e.g. `0.8.0.0`).
+2. `src/RtlSdrManager/RtlSdrManager.csproj`: `<PackageReleaseNotes>`, trimmed to the current
+   version only, with its release date.
+3. `samples/RtlSdrManager.Samples/RtlSdrManager.Samples.csproj`: `<Version>`,
+   `<FileVersion>`, `<AssemblyVersion>` and `<ProductVersion>`. The samples version tracks
+   the library rather than moving independently.
+4. `README.md`: the `<PackageReference … Version="…" />` install example.
+5. `CHANGELOG.md`: a new dated section, a row in the Version History Summary table, and a
    release-tag footnote link at the bottom.
+
+`tools/HwVerify` carries no version and needs no update.
 
 This project dates every changelog section on release; it does **not** use an `Unreleased`
 heading. It follows [Semantic Versioning](https://semver.org/) and

@@ -416,6 +416,8 @@ rtlsdr-manager/
 │       └── Modes/               # Enumeration types
 ├── tests/
 │   └── RtlSdrManager.Tests/     # xUnit test suite
+├── tools/
+│   └── HwVerify/                # Hardware verification harness
 ├── samples/
 │   └── RtlSdrManager.Samples/   # Example applications
 └── docs/                        # Documentation
