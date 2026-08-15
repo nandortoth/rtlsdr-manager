@@ -1044,10 +1044,39 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     }
 
     /// <summary>
+    /// Validate a GPIO pin number.
+    /// </summary>
+    /// <param name="gpio">The GPIO pin number to validate.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the pin is outside 0..7.</exception>
+    /// <remarks>
+    /// The range comes from the RTL2832U's GPO register, which is a single byte written as
+    /// <c>1 &lt;&lt; gpio</c>, giving pins 0..7. It is a property of the demodulator and is
+    /// therefore the same for every tuner.
+    /// </remarks>
+    internal static void ValidateGpioPin(int gpio)
+    {
+        if (gpio is < 0 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(gpio), gpio,
+                "The GPIO pin must be between 0 and 7.");
+        }
+    }
+
+    /// <summary>
     /// Enable or disable the Bias Tee on the GPIO pin 0.
     /// </summary>
+    /// <remarks>
+    /// Equivalent to <see cref="SetBiasTeeGPIO"/> with GPIO pin 0, which is where the bias
+    /// tee is wired on most dongles. Works on every supported tuner.
+    /// <para>
+    /// The bias tee stays powered when the device is closed, and after the process exits:
+    /// nothing clears the pin on teardown. Call this with
+    /// <see cref="BiasTeeModes.Disabled"/> before disposing the device if the attached
+    /// hardware should not remain powered.
+    /// </para>
+    /// </remarks>
     /// <param name="mode">Enabled, Disabled</param>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device rejects the request.</exception>
     public void SetBiasTee(BiasTeeModes mode)
     {
         // Set the new value on the device.
@@ -1067,28 +1096,33 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
 
     /// <summary>
     /// Enable or disable the Bias Tee on the given GPIO pin.
-    /// The function is implemented for R820T only.
     /// </summary>
+    /// <remarks>
+    /// The GPIO pins belong to the demodulator, not to the tuner, so this works on every
+    /// supported tuner. Most dongles wire the bias tee to pin 0; see
+    /// <see cref="SetBiasTee"/> for that common case.
+    /// <para>
+    /// Two pins are reserved for internal use and should not be driven as a bias tee
+    /// control: pin 4 is pulsed to reset the tuner while the device is opened, and pin 6
+    /// selects the band filter on FC0012 tuners, where it is rewritten on every retune.
+    /// They are not blocked here, matching the reference tooling, but choosing them will
+    /// produce confusing behavior.
+    /// </para>
+    /// <para>
+    /// The bias tee stays powered when the device is closed, and after the process exits:
+    /// nothing clears the pin on teardown. Set the pin back to
+    /// <see cref="BiasTeeModes.Disabled"/> before disposing the device if the attached
+    /// hardware should not remain powered.
+    /// </para>
+    /// </remarks>
     /// <param name="gpio">The GPIO pin to configure as a Bias Tee control (0..7).</param>
     /// <param name="mode">Enabled, Disabled</param>
-    /// <exception cref="RtlSdrLibraryExecutionException"></exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the GPIO pin is outside 0..7.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device rejects the request.</exception>
     public void SetBiasTeeGPIO(int gpio, BiasTeeModes mode)
     {
-        // This method can be executed if R820T is used.
-        if (TunerType != TunerTypes.R820T)
-        {
-            throw new RtlSdrLibraryExecutionException(
-                "SetBiasTeeGPIO can be executed if R820T is used. " +
-                $"Tuner Type: {TunerType}, device index: {DeviceInfo.Index}.");
-        }
-
-        // Check the GPIO number. R820T has 8 GPIO (0..7).
-        if (gpio < 0 || gpio > 7)
-        {
-            throw new RtlSdrLibraryExecutionException(
-                "Wrong GPIO is used. R820T has 8 GPIO (0..7)." +
-                $"GPIO: {gpio}, device index: {DeviceInfo.Index}.");
-        }
+        // The GPIO pins are on the demodulator, so no tuner check applies here.
+        ValidateGpioPin(gpio);
 
         // Set the new value on the device.
         ExecuteWithSuppression(() =>
@@ -1123,6 +1157,10 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         }
 
         // This method can be executed if R820T is used.
+        // NOTE: the equivalent guard was removed from SetBiasTeeGPIO, because GPIO pins
+        // belong to the demodulator rather than the tuner. The same reasoning probably
+        // applies here, but this method targets the KerberosSDR fork's entry point, which
+        // is not available to verify against. The guard stays until it can be checked.
         if (TunerType != TunerTypes.R820T)
         {
             throw new RtlSdrLibraryExecutionException(

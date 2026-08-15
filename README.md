@@ -292,9 +292,16 @@ if (freq1 > Frequency.FromMHz(100))
 // Enable bias tee on GPIO 0 (most common)
 device.SetBiasTee(BiasTeeModes.Enabled);
 
-// For R820T tuners, specify GPIO pin
-device.SetBiasTeeGPIO(gpio: 0, BiasTeeModes.Enabled);
+// Or target a specific GPIO pin (0..7), on any tuner
+device.SetBiasTeeGPIO(gpio: 1, BiasTeeModes.Enabled);
+
+// The bias tee stays powered after the device is closed, so turn it off explicitly
+device.SetBiasTee(BiasTeeModes.Disabled);
 ```
+
+> **Note:** GPIO pins 4 and 6 are reserved. Pin 4 is pulsed to reset the tuner while the
+> device is opened, and pin 6 selects the band filter on FC0012 tuners. They are not
+> blocked, but using them as a bias tee control will produce confusing behavior.
 
 #### Direct Sampling (HF reception)
 

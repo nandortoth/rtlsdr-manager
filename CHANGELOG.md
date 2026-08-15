@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SetMaximumTunerGain()` / `SetMinimumTunerGain()` on a tuner without manual gain control
   (FC2580, or an unrecognized tuner) now throw `RtlSdrLibraryExecutionException` naming the
   cause, instead of a bare "Sequence contains no elements" from LINQ
+- `SetBiasTeeGPIO()` works on every tuner, not just the R820T. The GPIO pins belong to the
+  demodulator, so the restriction was never justified; it also blocked the method on dongles
+  whose tuner is not recognized. `SetBiasTee()` was already unrestricted, and is defined as
+  this method on pin 0
 
 ### Changed
 - **BREAKING**: reading `TunerGain` before a gain has been set now throws
@@ -21,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error, classified like the other state errors introduced in 0.7.0
 - `SetMinimumTunerGain()` selects `0.0` dB on the R820T/R828D instead of `0.9` dB, so
   receivers relying on it get slightly less gain
+- **BREAKING**: `SetBiasTeeGPIO()` throws `ArgumentOutOfRangeException` for a pin outside
+  `0..7`, instead of `RtlSdrLibraryExecutionException`
+- Bias tee documentation now states that the pin stays powered after the device is closed,
+  and that GPIO pins 4 and 6 are reserved for the tuner reset and the FC0012 band filter
 
 ## [0.7.1] - 2026-07-24
 

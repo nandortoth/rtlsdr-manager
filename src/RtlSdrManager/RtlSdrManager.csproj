@@ -53,10 +53,14 @@
               reported 28 of 29 gains and TunerGain = 0.0 threw.
             - SetMaximumTunerGain()/SetMinimumTunerGain() on a tuner without manual gain
               control now name the cause, instead of throwing "Sequence contains no elements".
+            - SetBiasTeeGPIO() works on every tuner, not just the R820T. The GPIO pins belong
+              to the demodulator, so the restriction was never justified.
 
             CHANGED:
             - BREAKING: reading TunerGain before a gain has been set throws
               InvalidOperationException instead of RtlSdrLibraryExecutionException.
+            - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
+              0..7, instead of RtlSdrLibraryExecutionException.
             - SetMinimumTunerGain() selects 0.0 dB on the R820T/R828D instead of 0.9 dB.
 
             See CHANGELOG.md for complete details and previous releases.
