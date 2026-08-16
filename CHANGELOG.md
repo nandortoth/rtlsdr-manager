@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can currently reach. Reports the tuner's ranges normally and the ADC's while direct sampling
   is active, so it always answers what `CenterFrequency` accepts. Symmetric with
   `SupportedTunerGains`, and useful for building a scanner without hardcoding limits
+- Hardware verification harness (`tools/HwVerify`) covering the device-dependent behavior the
+  unit tests cannot reach: gain table, tuning ranges, direct sampling, console suppression,
+  synchronous and asynchronous sample reading, and GPIO validation. Not part of the NuGet
+  package; see `CONTRIBUTING.md`
 
 ### Fixed
 - Direct sampling is usable at last. `CenterFrequency` validated against the tuner's range
@@ -55,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0..7`, instead of `RtlSdrLibraryExecutionException`
 - Bias tee documentation now states that the pin stays powered after the device is closed,
   and that GPIO pins 4 and 6 are reserved for the tuner reset and the FC0012 band filter
+- `StartReadSamplesAsync()` and `StopReadSamplesAsync()` document a pre-existing macOS
+  limitation: starting a second asynchronous reading in the same process can fault inside the
+  USB layer, because ending one releases its transfer buffers without waiting for every
+  canceled transfer to report. Close the device and open it again between readings, which
+  greatly reduces it. Streaming once per device is unaffected, as is `ReadSamples()`, and as
+  is retuning while a reading is running
 
 ## [0.7.1] - 2026-07-24
 
@@ -414,7 +424,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
-| **0.8.0** | 2026-08-15 | R820T/R828D `0.0` dB gain accepted; clearer gain errors (breaking) |
+| **0.8.0** | 2026-08-15 | Direct sampling usable, tuner capability ranges, bias tee on all tuners, state errors reclassified (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |

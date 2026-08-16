@@ -79,6 +79,12 @@
             - The E4000's 1100 to 1250 MHz gap is no longer rejected up front: its boundaries
               vary between devices, so the tuner decides and reports the outcome.
 
+            KNOWN LIMITATION:
+            - On macOS, starting a second asynchronous reading in the same process can fault
+              inside the USB layer. Close the device and open it again between readings.
+              Streaming once per device is unaffected, as is ReadSamples(), and as is
+              retuning while a reading is running.
+
             See CHANGELOG.md for complete details and previous releases.
         </PackageReleaseNotes>
     </PropertyGroup>

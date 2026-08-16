@@ -49,6 +49,9 @@ and commits manually (project git rule in `CLAUDE.md`).
   ADDED / CHANGED / FIXED:
   - <short summary lines mirroring the CHANGELOG section>
 
+  KNOWN LIMITATION:
+  - <carried forward from the previous release; see below>
+
   See CHANGELOG.md for complete details and previous releases.
   ```
 
@@ -56,6 +59,24 @@ and commits manually (project git rule in `CLAUDE.md`).
   (commit `2878f9f`). Use the section headings that actually apply; don't invent changes.
   If the changelog content for this version isn't written yet, say so and leave a clearly
   marked placeholder for the user rather than fabricating entries.
+
+  **`KNOWN LIMITATION:` is the one block that does not get trimmed away.** Everything else
+  in this element describes a single release and is replaced wholesale; a limitation
+  describes the *current* state and outlives the release that documented it. Rewriting the
+  element without thinking would silently drop it while it is still true, and a consumer
+  reading NuGet.org would conclude it had been fixed.
+
+  So on every bump, for each limitation present:
+
+  - **Still true?** Carry the wording forward unchanged.
+  - **Fixed in this release?** Delete it here *and* add the fix under `FIXED:`.
+  - **Newly discovered?** Add it, and give it a `## Known Limitations` subsection in
+    `README.md` at the same time — that is the durable home; this element is the copy
+    consumers happen to see first.
+
+  Cross-check against `README.md`'s `## Known Limitations` section: the two must agree
+  after the bump. If `README.md` has no such section and no limitation is carried, there is
+  nothing to do.
 
 A pre-release suffix (`0.8.0-rc1`) goes in `<Version>` only; `<FileVersion>` and
 `<AssemblyVersion>` take the numeric part (`0.8.0.0`), since assembly versions cannot carry

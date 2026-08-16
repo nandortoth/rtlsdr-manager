@@ -463,6 +463,30 @@ This library supports RTL-SDR devices with the following tuners:
 | Fitipower FC0013 | 22 -- 1100 MHz | Basic performance |
 | FCI FC2580 | 146 -- 308 MHz, 438 -- 924 MHz | Good performance |
 
+## Known Limitations
+
+### Repeated asynchronous readings on macOS
+
+Starting a second asynchronous reading in the same process can terminate it. Ending a reading
+releases its transfer buffers without waiting for every canceled transfer to report, and a
+late completion then faults inside the USB layer. The failure is abrupt, with no managed
+exception to catch.
+
+Close the device and open it again between readings rather than calling
+`StartReadSamplesAsync()` a second time on the same instance. That greatly reduces the risk
+without removing it entirely.
+
+**Most applications never meet this.** It requires all of macOS, the asynchronous API, and
+more than one reading per process. Unaffected are:
+
+- Streaming once per device, which is the usual shape
+- `ReadSamples()`, the synchronous API, on any platform
+- Changing `CenterFrequency` while a reading is running, so scanning by retuning mid-stream
+  is safe
+
+The root cause is in the native layer's cancellation path, which waits for transfers to
+settle on Windows but not on the other platforms.
+
 ## Contributing
 
 Contributions are welcome. Please read the [Contributing Guide](CONTRIBUTING.md) for development setup, coding standards, and the pull request process. This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
