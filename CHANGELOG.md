@@ -449,7 +449,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
-| **0.8.0** | 2026-08-15 | Direct sampling usable, tuner capability ranges, bias tee on all tuners, state errors reclassified (breaking) |
+| **0.8.0** | 2026-08-24 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |

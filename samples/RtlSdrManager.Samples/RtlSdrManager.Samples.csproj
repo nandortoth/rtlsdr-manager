@@ -11,6 +11,9 @@
         <LangVersion>latest</LangVersion>
         <AssemblyName>RtlSdrManager.Samples</AssemblyName>
         <RootNamespace>RtlSdrManager.Samples</RootNamespace>
+
+        <!-- Demo application: never packed, never published to NuGet. -->
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
