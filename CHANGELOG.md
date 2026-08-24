@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can currently reach. Reports the tuner's ranges normally and the ADC's while direct sampling
   is active, so it always answers what `CenterFrequency` accepts. Symmetric with
   `SupportedTunerGains`, and useful for building a scanner without hardcoding limits
+- `TransferBufferCount` on `RtlSdrManagedDevice`, controlling how many buffers the device
+  fills in rotation during an asynchronous reading. The main lever for trading tolerance of a
+  slow consumer against worst-case latency; previously fixed at 15 and unreachable. Accepts 1
+  to 64, defaults to `DefaultTransferBufferCount`, and is captured when the reading starts.
+  Distinct from `MaxAsyncBufferSize`, which sizes the queue the caller reads from
 - Hardware verification harness (`tools/HwVerify`) covering the device-dependent behavior the
   unit tests cannot reach: gain table, tuning ranges, direct sampling, console suppression,
   synchronous and asynchronous sample reading, and GPIO validation. Not part of the NuGet
@@ -32,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SetMaximumTunerGain()` / `SetMinimumTunerGain()` on a tuner without manual gain control
   (FC2580, or an unrecognized tuner) now throw `RtlSdrLibraryExecutionException` naming the
   cause, instead of a bare "Sequence contains no elements" from LINQ
+- `DroppedSamplesCount` could lose a reset or report a partially applied update. The counter
+  is incremented on the thread delivering samples while `ResetDroppedSamplesCounter()` writes
+  from the caller's, and neither access was atomic. Diagnostic only; no samples were affected
+- `GetSamplesFromAsyncBuffer()` given a negative count threw an `ArgumentOutOfRangeException`
+  naming `capacity`, an internal detail of the list it was building. It now names `maxCount`
 - `SetBiasTeeGPIO()` works on every tuner, not just the R820T. The GPIO pins belong to the
   demodulator, so the restriction was never justified; it also blocked the method on dongles
   whose tuner is not recognized. `SetBiasTee()` was already unrestricted, and is defined as
@@ -57,6 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TunerType` is queried once per device instead of on every frequency change
 - **BREAKING**: `SetBiasTeeGPIO()` throws `ArgumentOutOfRangeException` for a pin outside
   `0..7`, instead of `RtlSdrLibraryExecutionException`
+- **BREAKING**: `RtlSdrDeviceManager.Devices` is now `IReadOnlyDictionary<uint, DeviceInfo>`
+  rather than `Dictionary<uint, DeviceInfo>`, so the manager's device table can no longer be
+  mutated by callers. Affects code that assigned it to a `Dictionary<uint, DeviceInfo>`;
+  reading, indexing and enumeration are unchanged
+- **BREAKING**: `StartReadSamplesAsync()` now caps a single read at 8388608 samples (16 MiB)
+  and the memory across all transfer buffers at 256 MiB. The previous limit existed only to
+  prevent an arithmetic overflow and allowed a ~4 GB request, which was then allocated once
+  per transfer buffer and failed with no useful diagnostic. Counts above the new limits are
+  rejected with a message naming both values
 - Bias tee documentation now states that the pin stays powered after the device is closed,
   and that GPIO pins 4 and 6 are reserved for the tuner reset and the FC0012 band filter
 - `StartReadSamplesAsync()` and `StopReadSamplesAsync()` document a pre-existing macOS

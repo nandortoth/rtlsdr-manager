@@ -96,6 +96,7 @@ finally
 ## Notes
 
 - The `DropSamplesOnFullBuffer` setting prevents buffer overflow by dropping old samples when the buffer is full.
+- `TransferBufferCount` controls how many buffers the device fills in rotation, and is the main lever if samples are being dropped or latency matters. Raising it absorbs longer pauses in your handler; lowering it cuts worst-case delay. The default suits most applications, and it must be set before `StartReadSamplesAsync()`. Note that this is separate from `MaxAsyncBufferSize`, which sizes the queue your code reads from rather than the device's own buffers.
 - Async reading runs in a background thread, so always stop it with `StopReadSamplesAsync()` and release the device with `CloseManagedDevice(...)` (or `Dispose()`) when finished.
 - `StopReadSamplesAsync()` rethrows any error that stopped the reading; wrap it so cleanup still runs.
 - A sample rate of 2 MHz provides good coverage for most applications.

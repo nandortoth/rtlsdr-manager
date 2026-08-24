@@ -73,6 +73,27 @@ public sealed partial class RtlSdrManagedDevice
     private bool _activeRawBufferMode;
 
     /// <summary>
+    /// Transfer buffer count captured at StartReadSamplesAsync, for the same reason as
+    /// <see cref="_activeRawBufferMode"/>: the reading is configured once, when it starts.
+    /// </summary>
+    private uint _activeTransferBufferCount;
+
+    /// <summary>
+    /// Backing field of <see cref="TransferBufferCount"/>.
+    /// </summary>
+    private uint _transferBufferCount = DefaultTransferBufferCount;
+
+    /// <summary>
+    /// Backing field of <see cref="DroppedSamplesCount"/>.
+    /// </summary>
+    /// <remarks>
+    /// A field rather than an auto-property because the interlocked helpers take it by
+    /// reference. The native callback thread adds to it while the caller's thread may reset
+    /// it, so every access goes through <see cref="Interlocked"/> or <see cref="Volatile"/>.
+    /// </remarks>
+    private uint _droppedSamplesCount;
+
+    /// <summary>
     /// True when the current asynchronous reading was asked to stop (by
     /// StopReadSamplesAsync or by a captured error). Used to tell a requested stop
     /// apart from the reading stopping on its own: on a requested stop the native
@@ -85,6 +106,40 @@ public sealed partial class RtlSdrManagedDevice
     /// Default amount of requested samples from RTL-SDR device.
     /// </summary>
     private const uint AsyncDefaultReadLength = 16384;
+
+    /// <summary>
+    /// Default value of <see cref="TransferBufferCount"/>.
+    /// </summary>
+    public const uint DefaultTransferBufferCount = 15;
+
+    /// <summary>
+    /// Smallest accepted <see cref="TransferBufferCount"/>.
+    /// </summary>
+    private const uint MinimumTransferBufferCount = 1;
+
+    /// <summary>
+    /// Largest accepted <see cref="TransferBufferCount"/>.
+    /// </summary>
+    private const uint MaximumTransferBufferCount = 64;
+
+    /// <summary>
+    /// Largest accepted sample count for a single read, which is 16 MiB of samples.
+    /// </summary>
+    /// <remarks>
+    /// Two bytes per sample, so this is 8388608 samples. The device's own default read is
+    /// 256 KiB, so this leaves 64x headroom while keeping a mistyped value from becoming a
+    /// multi-gigabyte allocation.
+    /// </remarks>
+    internal const uint MaximumRequestedSamples = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// Largest accepted total allocation across every transfer buffer, in bytes.
+    /// </summary>
+    /// <remarks>
+    /// The per-read and per-buffer-count limits are individually reasonable but multiply:
+    /// 16 MiB across 64 buffers would reach 1 GiB. This bounds the product.
+    /// </remarks>
+    internal const long MaximumTotalTransferBytes = 256L * 1024 * 1024;
 
     /// <summary>
     /// Event to notify subscribers, if the new samples are available.
@@ -128,7 +183,12 @@ public sealed partial class RtlSdrManagedDevice
     /// Counter for dropped I/Q samples.
     /// It is possible to reset the counter with <see cref="ResetDroppedSamplesCounter"/>.
     /// </summary>
-    public uint DroppedSamplesCount { get; private set; }
+    /// <remarks>
+    /// The counter is written from the thread delivering samples and read from the caller's,
+    /// so it is updated atomically and read through a barrier: a reset cannot be lost, and a
+    /// reader never sees a partially applied update.
+    /// </remarks>
+    public uint DroppedSamplesCount => Volatile.Read(ref _droppedSamplesCount);
 
     /// <summary>
     /// When true, the device uses raw buffer mode: samples are delivered as raw byte[]
@@ -138,6 +198,34 @@ public sealed partial class RtlSdrManagedDevice
     /// effect at the next <see cref="StartReadSamplesAsync"/> call. Default: false.
     /// </summary>
     public bool UseRawBufferMode { get; set; }
+
+    /// <summary>
+    /// Number of buffers the device fills in rotation while a reading is running.
+    /// Default: <see cref="DefaultTransferBufferCount"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the main control over how much slack the reading has. More buffers absorb
+    /// longer pauses in the consumer before samples are lost, at the cost of more memory and
+    /// higher worst-case latency between capture and delivery; fewer buffers do the reverse.
+    /// The default suits most applications, so leave it alone unless samples are being
+    /// dropped or latency matters more than tolerance.
+    /// <para>
+    /// Must be set before <see cref="StartReadSamplesAsync"/>; the value is captured when the
+    /// reading starts, so changing it during a reading has no effect until the next one.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the value is outside 1 to 64.
+    /// </exception>
+    public uint TransferBufferCount
+    {
+        get => _transferBufferCount;
+        set
+        {
+            ValidateTransferBufferCount(value);
+            _transferBufferCount = value;
+        }
+    }
 
     /// <summary>
     /// The error that stopped the current (or most recent) asynchronous reading, or null if
@@ -155,7 +243,7 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Reset the counter for dropped I/Q samples.
     /// </summary>
-    public void ResetDroppedSamplesCounter() => DroppedSamplesCount = 0;
+    public void ResetDroppedSamplesCounter() => Interlocked.Exchange(ref _droppedSamplesCount, 0);
 
     /// <summary>
     /// Get I/Q samples from the async buffer.
@@ -166,6 +254,15 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
     public List<IQData> GetSamplesFromAsyncBuffer(int maxCount)
     {
+        // Reject a negative count rather than clamping it to zero. It is nearly always a
+        // computed value that went negative, and returning an empty list would hide that at
+        // the one point it can still be caught.
+        if (maxCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxCount), maxCount,
+                "The maximum sample count cannot be negative.");
+        }
+
         // The AsyncBuffer property throws InvalidOperationException if the async reading
         // has not been started yet.
         ConcurrentQueue<IQData> buffer = AsyncBuffer;
@@ -278,7 +375,7 @@ public sealed partial class RtlSdrManagedDevice
             // was not asked, record the error as well, which stops the reading.
             if (channel.Reader.Count >= _rawChannelCapacity)
             {
-                DroppedSamplesCount += (uint)(byteLength / 2);
+                Interlocked.Add(ref _droppedSamplesCount, (uint)(byteLength / 2));
 
                 if (!DropSamplesOnFullBuffer)
                 {
@@ -304,7 +401,7 @@ public sealed partial class RtlSdrManagedDevice
             {
                 // Channel full (race with pre-check above) — return buffer and count as dropped.
                 ArrayPool<byte>.Shared.Return(pooledBuffer);
-                DroppedSamplesCount += (uint)(byteLength / 2);
+                Interlocked.Add(ref _droppedSamplesCount, (uint)(byteLength / 2));
                 return;
             }
 
@@ -328,7 +425,7 @@ public sealed partial class RtlSdrManagedDevice
             // If dropping was not asked, record the error as well, which stops the reading.
             if (buffer.Count + length >= MaxAsyncBufferSize)
             {
-                DroppedSamplesCount += (uint)length;
+                Interlocked.Add(ref _droppedSamplesCount, (uint)length);
 
                 if (!DropSamplesOnFullBuffer)
                 {
@@ -410,8 +507,11 @@ public sealed partial class RtlSdrManagedDevice
     private void SamplesAsyncReader(object? readLength)
     {
         // Read from device. The call blocks until the reading is canceled or fails.
+        // The buffer count is the value captured at StartReadSamplesAsync rather than 0:
+        // zero means "use your own default" to the native layer, which is what made
+        // TransferBufferCount unreachable before it was exposed.
         int returnCode = LibRtlSdr.rtlsdr_read_async(_deviceHandle!, _asyncCallback,
-            (IntPtr)_deviceContext, 0, (uint)readLength!);
+            (IntPtr)_deviceContext, _activeTransferBufferCount, (uint)readLength!);
 
         // A nonzero code only means an error when the reading ended on its own
         // (e.g. device failure). On a requested stop, librtlsdr reports the last
@@ -436,12 +536,74 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is not supported.</exception>
     internal static void ValidateRequestedSamples(uint requestedSamples)
     {
-        if (requestedSamples == 0 || requestedSamples > uint.MaxValue / 2 ||
+        if (requestedSamples == 0 || requestedSamples > MaximumRequestedSamples ||
             (requestedSamples * 2) % 512 != 0)
         {
             throw new ArgumentOutOfRangeException(nameof(requestedSamples), requestedSamples,
-                "Requested sample count must be greater than zero, and its byte size " +
-                "(requested samples * 2) must be a multiple of 512.");
+                "Requested sample count must be greater than zero and at most " +
+                $"{MaximumRequestedSamples}, and its byte size (requested samples * 2) " +
+                "must be a multiple of 512.");
+        }
+    }
+
+    /// <summary>
+    /// Validate a requested transfer buffer count.
+    /// </summary>
+    /// <param name="transferBufferCount">Number of buffers filled in rotation.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the count is outside <see cref="MinimumTransferBufferCount"/> to
+    /// <see cref="MaximumTransferBufferCount"/>.
+    /// </exception>
+    /// <remarks>
+    /// Extracted from the <see cref="TransferBufferCount"/> setter so it can be tested
+    /// without a device, in the same way as the tuner gain and GPIO validation. The
+    /// parameter name rather than <c>value</c> reaches the caller, which names the property
+    /// being set instead of the setter's hidden argument.
+    /// <para>
+    /// The upper bound is this library's own. The native layer accepts any nonzero count and
+    /// allocates that many buffers without a ceiling of its own, so nothing below this
+    /// rejects an absurd value.
+    /// </para>
+    /// </remarks>
+    internal static void ValidateTransferBufferCount(uint transferBufferCount)
+    {
+        if (transferBufferCount is < MinimumTransferBufferCount or > MaximumTransferBufferCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transferBufferCount), transferBufferCount,
+                $"The transfer buffer count must be between {MinimumTransferBufferCount} " +
+                $"and {MaximumTransferBufferCount}.");
+        }
+    }
+
+    /// <summary>
+    /// Validate the memory a reading would need across every transfer buffer.
+    /// </summary>
+    /// <param name="requestedSamples">Samples requested per read.</param>
+    /// <param name="transferBufferCount">Number of buffers filled in rotation.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the total exceeds <see cref="MaximumTotalTransferBytes"/>.
+    /// </exception>
+    /// <remarks>
+    /// Each value is checked on its own where it is set, but they multiply, and neither
+    /// check can see the other. The native layer allocates one buffer of the requested size
+    /// per transfer buffer and bounds neither the size nor the count, so this is the only
+    /// place the product is caught before the allocation is attempted.
+    /// </remarks>
+    internal static void ValidateTotalTransferSize(uint requestedSamples, uint transferBufferCount)
+    {
+        // Int128, because the product of two uint values doubled does not fit in long or
+        // ulong: at the extremes it reaches about 3.7e19 against a ulong ceiling of 1.8e19,
+        // and a wrapped total compares as small enough to pass. The real call path validates
+        // both operands first, but this method is reachable on its own.
+        Int128 totalBytes = (Int128)requestedSamples * 2 * transferBufferCount;
+
+        if (totalBytes > MaximumTotalTransferBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestedSamples), requestedSamples,
+                $"Reading {requestedSamples} samples into {transferBufferCount} buffers needs " +
+                $"{totalBytes / (1024 * 1024)} MiB, which is above the " +
+                $"{MaximumTotalTransferBytes / (1024 * 1024)} MiB limit. Reduce the requested " +
+                $"samples, or lower {nameof(TransferBufferCount)}.");
         }
     }
 
@@ -467,8 +629,11 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
     {
-        // Validate the requested amount before touching any state.
+        // Validate the requested amount before touching any state, then the total the
+        // reading would allocate: the per-read and per-buffer limits pass individually but
+        // multiply, and this is the first point where both values are known.
         ValidateRequestedSamples(requestedSamples);
+        ValidateTotalTransferSize(requestedSamples, TransferBufferCount);
 
         // Check the worker thread.
         if (_asyncWorker != null)
@@ -478,9 +643,10 @@ public sealed partial class RtlSdrManagedDevice
                 $"The worker thread is already started. Device index: {DeviceInfo.Index}.");
         }
 
-        // Capture the buffer mode for this reading session, and reset the per-session
-        // state (stop request and captured error) of any previous session.
+        // Capture the buffer mode and transfer buffer count for this reading session, and
+        // reset the per-session state (stop request and captured error) of any previous one.
         _activeRawBufferMode = UseRawBufferMode;
+        _activeTransferBufferCount = TransferBufferCount;
         _stopRequested = false;
         _asyncReadException = null;
 
@@ -566,9 +732,11 @@ public sealed partial class RtlSdrManagedDevice
 
         // Wait for the worker thread to finish. The join is bounded: if the cancel
         // request genuinely failed while the device keeps streaming, an unbounded
-        // join would never return. On timeout, keep all state intact (worker, buffers,
-        // device context) and throw: the caller can retry, or Dispose will leak the
-        // resources safely rather than free them under a still-running native callback.
+        // join would never return. On timeout, keep all state intact and throw: the caller
+        // can retry, or Dispose will leak the resources safely rather than free them under a
+        // still-running native callback. That covers the worker, the buffers, the device
+        // context, and the stop request, which the worker still reads when the native read
+        // eventually returns.
         if (!_asyncWorker.Join(TimeSpan.FromSeconds(5)))
         {
             throw new RtlSdrLibraryExecutionException(

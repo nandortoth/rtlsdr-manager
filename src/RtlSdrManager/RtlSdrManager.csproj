@@ -52,6 +52,9 @@
               DemodulatorCapabilities and FrequencyRange types behind it, reporting what the
               device can currently reach: the tuner's ranges, or the ADC's while direct
               sampling is active.
+            - TransferBufferCount, controlling how many buffers the device fills in rotation
+              during an asynchronous reading. Trades tolerance of a slow consumer against
+              worst-case latency; previously fixed at 15 and unreachable.
 
             FIXED:
             - Direct sampling is usable at last. CenterFrequency validated against the tuner's
@@ -75,6 +78,11 @@
               is beyond the ADC's reach, because the demodulator would truncate it silently.
             - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
               0..7, instead of RtlSdrLibraryExecutionException.
+            - BREAKING: RtlSdrDeviceManager.Devices is now IReadOnlyDictionary, so the device
+              table can no longer be mutated by callers. Reading and enumeration unchanged.
+            - BREAKING: StartReadSamplesAsync() caps a single read at 8388608 samples (16 MiB)
+              and the total across all transfer buffers at 256 MiB. The old limit allowed a
+              ~4 GB request, allocated once per buffer, failing with no useful diagnostic.
             - SetMinimumTunerGain() selects 0.0 dB on the R820T/R828D instead of 0.9 dB.
             - The E4000's 1100 to 1250 MHz gap is no longer rejected up front: its boundaries
               vary between devices, so the tuner decides and reports the outcome.

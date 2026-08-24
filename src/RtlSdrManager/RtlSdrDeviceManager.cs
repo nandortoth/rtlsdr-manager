@@ -125,7 +125,7 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     /// call; a refresh replaces the dictionary instance, so re-read this property instead of
     /// holding on to a previously returned dictionary.
     /// </summary>
-    public Dictionary<uint, DeviceInfo> Devices { get; private set; }
+    public IReadOnlyDictionary<uint, DeviceInfo> Devices { get; private set; }
 
     // Console output suppression configuration and implementation
     // CRITICAL: Uses a global singleton suppressor with reference counting to avoid file descriptor

@@ -81,6 +81,7 @@ internal sealed class SampleReadingChecks : IHardwareCheck
             RunOnFreshDevice(VerifySynchronousReading, report);
             RunOnFreshDevice(VerifyAsynchronousReading, report);
             RunOnFreshDevice(VerifyReadingAgainAfterReopening, report);
+            RunOnFreshDevice(VerifyNonDefaultTransferBufferCount, report);
             RunOnFreshDevice(VerifyRawBufferMode, report);
             RunOnFreshDevice(VerifyBufferFullIsReported, report);
 
@@ -276,6 +277,52 @@ internal sealed class SampleReadingChecks : IHardwareCheck
                 "already completed one reading");
 
             report.Check("the second reading delivers the counter, in order",
+                () => DeliversTheCounter(device),
+                "samples continuing the demodulator's counter");
+        }
+        finally
+        {
+            StopQuietly(device);
+        }
+    }
+
+    /// <summary>
+    /// Verify that a device configured with a non-default transfer buffer count still
+    /// delivers a correct stream.
+    /// </summary>
+    /// <param name="device">The device under test.</param>
+    /// <param name="report">Report collecting the outcomes.</param>
+    /// <remarks>
+    /// The count cannot be read back, so this does not assert that the value reached the
+    /// device; it asserts the outcome that matters, which is that a non-default count still
+    /// streams correctly. The count is passed straight to the layer that allocates the
+    /// transfer buffers, and a wrong value there yields a device that delivers nothing or
+    /// delivers a broken stream. Both fail here.
+    /// <para>
+    /// Four rather than the default, because a low count cycles the buffers more often at
+    /// the same sample rate.
+    /// </para>
+    /// </remarks>
+    private static void VerifyNonDefaultTransferBufferCount(RtlSdrManagedDevice device,
+        VerificationReport report)
+    {
+        device.DropSamplesOnFullBuffer = true;
+        device.TransferBufferCount = 4;
+
+        try
+        {
+            report.Check("a transfer buffer count outside 1 to 64 is rejected",
+                () => VerificationReport.Throws<ArgumentOutOfRangeException>(
+                    () => device.TransferBufferCount = 0),
+                "ArgumentOutOfRangeException naming transferBufferCount");
+
+            device.StartReadSamplesAsync();
+
+            report.Check("a non-default transfer buffer count still streams",
+                () => Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, DeliveryDeadline),
+                $"samples within {DeliveryDeadline.TotalSeconds:0} s using 4 buffers");
+
+            report.Check("the stream is still the counter, in order",
                 () => DeliversTheCounter(device),
                 "samples continuing the demodulator's counter");
         }
