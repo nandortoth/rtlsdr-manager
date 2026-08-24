@@ -45,13 +45,16 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.8.0 (2026-08-15):
+            v0.8.0 (2026-08-24):
 
             ADDED:
             - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities,
               DemodulatorCapabilities and FrequencyRange types behind it, reporting what the
               device can currently reach: the tuner's ranges, or the ADC's while direct
               sampling is active.
+            - OpenManagedDeviceBySerial(), opening a device by serial number rather than by
+              index. Indices are positional and shift when devices are plugged or unplugged;
+              a serial stays with the device. Throws if several devices share the serial.
             - TransferBufferCount, controlling how many buffers the device fills in rotation
               during an asynchronous reading. Trades tolerance of a slow consumer against
               worst-case latency; previously fixed at 15 and unreachable.

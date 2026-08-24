@@ -126,31 +126,60 @@ Console.WriteLine("All devices closed");
 
 ### Device Identification by Serial Number
 
+Device indices are positional: they change when devices are plugged in or removed, so an
+index that identified a device yesterday can identify a different one today. A serial number
+stays with the device, which makes it the right handle whenever the same physical device has
+to be reached across restarts or replugs.
+
 ```csharp
-// Find device with specific serial number
-uint? FindDeviceBySerial(string serial)
-{
-    foreach (var (index, info) in manager.Devices)
-    {
-        if (info.Serial == serial)
-        {
-            return index;
-        }
-    }
-    return null;
-}
+// Open a specific physical device, whatever index it currently has
+manager.OpenManagedDeviceBySerial("19862104", "target-device");
+```
 
-var targetSerial = "00000001";
-var deviceIndex = FindDeviceBySerial(targetSerial);
+The serial is matched exactly and case-sensitively against the device list from startup or
+the last `RefreshDevices()` call. Refresh first if devices may have been plugged in or
+removed since:
 
-if (deviceIndex.HasValue)
+```csharp
+manager.RefreshDevices();
+manager.OpenManagedDeviceBySerial("19862104", "target-device");
+```
+
+Two failures are worth handling separately, because the remedies differ:
+
+```csharp
+try
 {
-    manager.OpenManagedDevice(deviceIndex.Value, "target-device");
-    Console.WriteLine($"Found and opened device with serial {targetSerial}");
+    manager.OpenManagedDeviceBySerial(targetSerial, "target-device");
 }
-else
+catch (RtlSdrDeviceException ex)
 {
-    Console.WriteLine($"Device with serial {targetSerial} not found");
+    // No device carries that serial, or more than one does. The message lists the
+    // serials that were found.
+    Console.WriteLine(ex.Message);
+}
+```
+
+**Serial numbers are not guaranteed to be unique.** Many devices ship with the same factory
+value, commonly `00000001`, until it is changed. If more than one attached device carries the
+requested serial, `OpenManagedDeviceBySerial` throws instead of picking one, since either
+choice would be arbitrary. To use serial-based identification in a multi-device setup, give
+the devices distinct serials first with the `rtl_eeprom` utility that ships with the native
+driver:
+
+```bash
+rtl_eeprom -d 0 -s 19862103
+rtl_eeprom -d 1 -s 19862104
+```
+
+Replug the devices afterwards for the new serial to be reported.
+
+To inspect what is attached without opening anything, read the enumerated list directly:
+
+```csharp
+foreach (var (index, info) in manager.Devices)
+{
+    Console.WriteLine($"[{index}] {info.Manufacturer} {info.ProductType} serial={info.Serial}");
 }
 ```
 
@@ -163,7 +192,7 @@ else
 
 ## Notes
 
-- Device indices are 0-based.
+- Device indices are 0-based, and positional: prefer `OpenManagedDeviceBySerial` when the same physical device must be reached again later.
 - Friendly names make device management more intuitive than using numeric indices.
 - `DeviceInfo` provides the device index, name, manufacturer, product type, and serial number.
 - Each device operates independently with its own buffer.

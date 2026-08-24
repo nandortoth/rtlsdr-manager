@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-08-15
+## [0.8.0] - 2026-08-24
 
 ### Added
 - `SupportedFrequencyRanges` on `RtlSdrManagedDevice`, and the `TunerCapabilities`,
@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can currently reach. Reports the tuner's ranges normally and the ADC's while direct sampling
   is active, so it always answers what `CenterFrequency` accepts. Symmetric with
   `SupportedTunerGains`, and useful for building a scanner without hardcoding limits
+- `OpenManagedDeviceBySerial()` on `RtlSdrDeviceManager`, opening a device by its serial
+  number instead of its index. Device indices are positional and change when devices are
+  plugged in or removed, so an index is not a stable way to reach the same physical device
+  across restarts or replugs. Serials are matched exactly; if more than one attached device
+  carries the requested serial, which is common with unmodified factory values, it throws
+  rather than picking one arbitrarily
 - `TransferBufferCount` on `RtlSdrManagedDevice`, controlling how many buffers the device
   fills in rotation during an asynchronous reading. The main lever for trading tolerance of a
   slow consumer against worst-case latency; previously fixed at 15 and unreachable. Accepts 1

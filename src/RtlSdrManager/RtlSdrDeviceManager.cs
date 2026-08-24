@@ -311,6 +311,112 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     public void RefreshDevices() => Devices = GetAllDeviceInfo();
 
     /// <summary>
+    /// Open an RTL-SDR device identified by its serial number.
+    /// </summary>
+    /// <param name="serial">Serial number of the device, matched exactly.</param>
+    /// <param name="friendlyName">Friendly name of the device, later this can be used as a reference.</param>
+    /// <remarks>
+    /// Prefer this over <see cref="OpenManagedDevice"/> whenever the same physical device has
+    /// to be reached across restarts or replugs. Device indices are positional and change when
+    /// devices are plugged in or removed, so an index that identified a device yesterday can
+    /// identify a different one today; a serial number stays with the device.
+    /// <para>
+    /// The serial is matched against the device list from initialization or the last
+    /// <see cref="RefreshDevices"/>. Call <see cref="RefreshDevices"/> first if devices may
+    /// have been plugged in or removed since then.
+    /// </para>
+    /// <para>
+    /// Serial numbers are not guaranteed to be unique: many devices ship with the same factory
+    /// value until it is changed. If more than one device carries the requested serial, this
+    /// throws rather than picking one, since either choice would be arbitrary.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when serial or friendlyName is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when serial is empty or whitespace, when friendlyName is empty or whitespace, or when a device with the given friendly name already exists.</exception>
+    /// <exception cref="RtlSdrDeviceException">Thrown when no device has the given serial, or when more than one does.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device cannot be opened, for example when it is already open or the process lacks permission to access it.</exception>
+    public void OpenManagedDeviceBySerial(string serial, string friendlyName)
+    {
+        // Resolve first, then hand over to the index-based open, which owns friendly name
+        // validation, the duplicate name check, console suppression and construction.
+        uint index = ResolveSerialToIndex(Devices, serial);
+
+        OpenManagedDevice(index, friendlyName);
+    }
+
+    /// <summary>
+    /// Find the index of the device carrying the given serial number.
+    /// </summary>
+    /// <param name="devices">Device list to search.</param>
+    /// <param name="serial">Serial number to look for, matched exactly.</param>
+    /// <returns>Index of the matching device.</returns>
+    /// <remarks>
+    /// Static and taking the device list as an argument so it can be exercised without a
+    /// device attached, in the same way as the tuner gain and GPIO validation.
+    /// <para>
+    /// The search deliberately runs over the manager's own device list rather than asking the
+    /// device layer to resolve the serial. <see cref="OpenManagedDevice"/> looks its index up
+    /// in that same list, so resolving anywhere else could return an index that means one
+    /// device to the resolver and another to the open; after a device is unplugged, that would
+    /// silently open the wrong one under the requested name.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when serial is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when serial is empty or whitespace.</exception>
+    /// <exception cref="RtlSdrDeviceException">Thrown when no device has the given serial, or when more than one does.</exception>
+    internal static uint ResolveSerialToIndex(IReadOnlyDictionary<uint, DeviceInfo> devices,
+        string serial)
+    {
+        if (serial == null)
+        {
+            throw new ArgumentNullException(nameof(serial), "Serial number cannot be null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(serial))
+        {
+            throw new ArgumentException("Serial number cannot be empty or whitespace.",
+                nameof(serial));
+        }
+
+        // Ordinal, because a serial number is an opaque identifier read from the device
+        // rather than text: nothing about it makes "ABC" and "abc" the same device.
+        uint[] matches = devices
+            .Where(entry => string.Equals(entry.Value.Serial, serial, StringComparison.Ordinal))
+            .Select(entry => entry.Key)
+            .ToArray();
+
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        // Naming the known serials matters more than usual here: the likely cause is a device
+        // list that predates a plug or unplug, and the remedy is not obvious from the failure.
+        if (matches.Length == 0)
+        {
+            throw new RtlSdrDeviceException(
+                $"No RTL-SDR device has the serial number '{serial}'. " +
+                "Call RefreshDevices() if devices have been plugged in or removed. " +
+                $"Available serial numbers: {DescribeSerials(devices)}.");
+        }
+
+        throw new RtlSdrDeviceException(
+            $"{matches.Length} RTL-SDR devices share the serial number '{serial}', " +
+            $"at indices {string.Join(", ", matches)}, so it does not identify one device. " +
+            "Open the device by index, or give the devices distinct serial numbers.");
+    }
+
+    /// <summary>
+    /// Describe the serial numbers in a device list, for use in an error message.
+    /// </summary>
+    /// <param name="devices">Device list to describe.</param>
+    /// <returns>Comma separated serial numbers, or a note that the list is empty.</returns>
+    private static string DescribeSerials(IReadOnlyDictionary<uint, DeviceInfo> devices) =>
+        devices.Count == 0
+            ? "none, no devices were found on the system"
+            : string.Join(", ", devices.Values.Select(device => $"'{device.Serial}'"));
+
+    /// <summary>
     /// Open RTL-SDR device for further usage.
     /// </summary>
     /// <param name="index">Index of the device.</param>
@@ -318,6 +424,7 @@ public class RtlSdrDeviceManager : IEnumerable<RtlSdrManagedDevice>
     /// <exception cref="ArgumentNullException">Thrown when friendlyName is null.</exception>
     /// <exception cref="ArgumentException">Thrown when friendlyName is empty or whitespace, or when a device with the given friendly name already exists.</exception>
     /// <exception cref="RtlSdrDeviceException">Thrown when the device index does not exist.</exception>
+    /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the device cannot be opened, for example when it is already open or the process lacks permission to access it.</exception>
     public void OpenManagedDevice(uint index, string friendlyName)
     {
         // Validate friendlyName parameter

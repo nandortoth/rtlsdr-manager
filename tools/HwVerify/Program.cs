@@ -152,6 +152,7 @@ internal static class Program
     private static IEnumerable<IHardwareCheck> BuildChecks(bool biasTeeOn,
         Func<RtlSdrManagedDevice> reopenDevice) =>
     [
+        new DeviceDiscoveryChecks(),
         new TunerGainChecks(),
         new CenterFrequencyChecks(),
         new DirectSamplingChecks(),
