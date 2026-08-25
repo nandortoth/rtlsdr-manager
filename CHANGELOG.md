@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-08-24
+## [0.8.0] - 2026-08-25
 
 ### Added
 - `SupportedFrequencyRanges` on `RtlSdrManagedDevice`, and the `TunerCapabilities`,
@@ -54,6 +54,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this method on pin 0
 
 ### Changed
+- **BREAKING**: using a disposed `RtlSdrManagedDevice` now throws `ObjectDisposedException`
+  instead of failing in ways that ranged from harmless to fatal. Most importantly,
+  `StartReadSamplesAsync()` on a disposed device **terminated the process**: it started its
+  worker, which handed the released device handle to the reader on a thread with no exception
+  handler. Configuring a disposed device (`MaxAsyncBufferSize`, `DropSamplesOnFullBuffer`,
+  `UseRawBufferMode`, `TransferBufferCount`), resetting the dropped-sample counter, or calling
+  `StopReadSamplesAsync()` all succeeded silently and now throw; `TunerType` no longer answers
+  differently depending on whether it was read before disposal; and `AsyncBuffer` /
+  `GetRawSamplesFromAsyncBuffer()` say the device is disposed rather than "not initialized yet"
+- A disposed device can still be **inspected**, deliberately: `DeviceInfo`, `ToString()`,
+  `AsyncReadException`, `DroppedSamplesCount` and the configuration getters keep working, so
+  logging and post-mortem paths are safe. `AsyncReadException` in particular is how a failed
+  disposal reports its cause
 - **BREAKING**: reading `TunerGain`, `CenterFrequency` or `SampleRate` before one has been set
   now throws `InvalidOperationException` instead of `RtlSdrLibraryExecutionException`. All
   three reported a device failure with "Error code: 0" for what is a usage error, and are now
@@ -449,7 +462,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
-| **0.8.0** | 2026-08-24 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
+| **0.8.0** | 2026-08-25 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
 | **0.6.3** | 2026-06-26 | Async/sync hot-path CPU & allocation optimizations |

@@ -45,7 +45,7 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.8.0 (2026-08-24):
+            v0.8.0 (2026-08-25):
 
             ADDED:
             - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities,
@@ -74,6 +74,12 @@
               to the demodulator, so the restriction was never justified.
 
             CHANGED:
+            - BREAKING: using a disposed device now throws ObjectDisposedException. Most
+              importantly, StartReadSamplesAsync() on a disposed device terminated the process;
+              configuring one, resetting the dropped-sample counter and StopReadSamplesAsync()
+              succeeded silently. A disposed device can still be inspected: DeviceInfo,
+              ToString(), AsyncReadException, DroppedSamplesCount and the configuration
+              getters keep working.
             - BREAKING: reading TunerGain, CenterFrequency or SampleRate before one has been
               set throws InvalidOperationException instead of RtlSdrLibraryExecutionException.
               All three reported a device failure for what is a usage error.

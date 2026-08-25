@@ -38,6 +38,11 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public unsafe List<IQData> ReadSamples(int requestedSamples)
     {
+        // Already fails on a disposed device, because the read reaches the device on this
+        // thread. Guarded anyway so both reading paths answer the same way, and so the
+        // failure names this device rather than the handle underneath it.
+        ThrowIfDisposed();
+
         // Validate input before allocating. Negative is invalid; an oversized count would
         // overflow the byte count; zero returns no samples without touching the device.
         if (requestedSamples < 0)

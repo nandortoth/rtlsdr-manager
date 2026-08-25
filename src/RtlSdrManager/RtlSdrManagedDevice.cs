@@ -28,6 +28,18 @@ namespace RtlSdrManager;
 /// <summary>
 /// Class for a managed (opened) RTL-SDR device.
 /// </summary>
+/// <remarks>
+/// After the device is disposed it can still be inspected but no longer operated. Reading
+/// what the device was told, what it recorded, or what it is
+/// (<see cref="DeviceInfo"/>, <see cref="AsyncReadException"/>,
+/// <see cref="DroppedSamplesCount"/>, the configuration properties) keeps working, so a
+/// cleanup or logging path is safe. Configuring it, reading samples and anything that reaches
+/// the hardware throw <see cref="ObjectDisposedException"/>.
+/// <para>
+/// The class is not safe to use from several threads at once. Disposing it while another
+/// thread is calling into it is undefined regardless of the checks described here.
+/// </para>
+/// </remarks>
 /// <inheritdoc />
 public sealed partial class RtlSdrManagedDevice : IDisposable
 {
@@ -103,7 +115,15 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <summary>
     /// Private field to implement IDispose interface.
     /// </summary>
-    private bool _disposed;
+    /// <remarks>
+    /// Volatile because <see cref="Dispose()"/> writes it while callers read it through
+    /// <see cref="ThrowIfDisposed"/> from their own threads. That buys a fresh read and
+    /// nothing more: checking the flag and then using the device is two steps, and a
+    /// disposal landing between them is caught by the device handle's own reference
+    /// counting rather than by this flag. The class is still not safe to dispose while
+    /// another thread is using it.
+    /// </remarks>
+    private volatile bool _disposed;
 
     #endregion
 
@@ -120,6 +140,24 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
         using var scope = new RtlSdrDeviceManager.SuppressionScope();
         action();
     }
+
+    /// <summary>
+    /// Throw if the device has been disposed.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
+    /// <remarks>
+    /// Applied only where the behavior after disposal would otherwise be wrong. Most members
+    /// reach the device on the caller's thread and already fail with this exception, raised
+    /// by the handle itself; guarding those would change only the reported object name.
+    /// <para>
+    /// Never call this from anything the native callback thread reaches.
+    /// <c>ProcessSamplesFromCallback</c> reads <see cref="MaxAsyncBufferSize"/> and
+    /// <see cref="DropSamplesOnFullBuffer"/> on that thread, so those getters are
+    /// deliberately unguarded: an exception crossing the native boundary terminates the
+    /// process. Their setters are guarded, which the callback never touches.
+    /// </para>
+    /// </remarks>
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     #endregion
 
@@ -186,6 +224,10 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// <summary>
     /// Fundamental information about the managed device.
     /// </summary>
+    /// <remarks>
+    /// Readable after the device is disposed, deliberately. This describes the device that was
+    /// opened and cannot go stale, so logging it from a cleanup path is legitimate.
+    /// </remarks>
     public DeviceInfo DeviceInfo { get; }
 
     /// <summary>
@@ -226,6 +268,11 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     {
         get
         {
+            // Guarded so the answer does not depend on call history: the cache would otherwise
+            // keep serving a disposed device if the type had been read before, and fail if it
+            // had not.
+            ThrowIfDisposed();
+
             if (_tunerTypeCache != null)
             {
                 return _tunerTypeCache.Value;
@@ -1400,6 +1447,11 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Override ToString method.
     /// </summary>
     /// <returns>String value of the RtlSdrManagedDevice instance.</returns>
+    /// <remarks>
+    /// Reads only <see cref="DeviceInfo"/>, so it works on a disposed device and must keep
+    /// doing so: debuggers call this while inspecting a variable, where a throwing override
+    /// shows up as an unexplained error instead of a value.
+    /// </remarks>
     public override string ToString()
     {
         return

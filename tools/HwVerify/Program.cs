@@ -158,6 +158,7 @@ internal static class Program
         new DirectSamplingChecks(),
         new ConsoleSuppressionChecks(),
         new SampleReadingChecks(reopenDevice),
+        new DisposalChecks(reopenDevice),
         new BiasTeeChecks(biasTeeOn)
     ];
 

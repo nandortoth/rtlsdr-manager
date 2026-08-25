@@ -84,6 +84,21 @@ public sealed partial class RtlSdrManagedDevice
     private uint _transferBufferCount = DefaultTransferBufferCount;
 
     /// <summary>
+    /// Backing field of <see cref="MaxAsyncBufferSize"/>.
+    /// </summary>
+    private uint _maxAsyncBufferSize;
+
+    /// <summary>
+    /// Backing field of <see cref="DropSamplesOnFullBuffer"/>.
+    /// </summary>
+    private bool _dropSamplesOnFullBuffer;
+
+    /// <summary>
+    /// Backing field of <see cref="UseRawBufferMode"/>.
+    /// </summary>
+    private bool _useRawBufferMode;
+
+    /// <summary>
     /// Backing field of <see cref="DroppedSamplesCount"/>.
     /// </summary>
     /// <remarks>
@@ -144,16 +159,26 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Event to notify subscribers, if the new samples are available.
     /// </summary>
+    /// <remarks>
+    /// Subscribing to a disposed device is not blocked: it cannot raise anything, so the
+    /// subscription is inert rather than wrong, and guarding an event's accessors would be
+    /// unusual enough to surprise callers.
+    /// </remarks>
     public event EventHandler<SamplesAvailableEventArgs>? SamplesAvailable;
 
     /// <summary>
     /// Accessor for the async I/Q buffer.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no reading has been started.</exception>
     public ConcurrentQueue<IQData> AsyncBuffer
     {
         get
         {
+            // Checked first, so a disposed device does not report itself as merely unstarted:
+            // ending a reading releases the buffer, and disposing ends any reading.
+            ThrowIfDisposed();
+
             // Check the buffer. It can be reachable, if there is an async reading.
             if (_asyncBuffer == null)
             {
@@ -170,14 +195,42 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Maximum size of async I/Q buffer.
     /// </summary>
-    public uint MaxAsyncBufferSize { get; set; }
+    /// <remarks>
+    /// Readable after the device is disposed, so configuration can still be inspected; setting
+    /// it then throws, because the value could never take effect.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when setting it on a disposed device.</exception>
+    public uint MaxAsyncBufferSize
+    {
+        // The getter is deliberately unguarded: the native callback thread reads it.
+        get => _maxAsyncBufferSize;
+        set
+        {
+            ThrowIfDisposed();
+            _maxAsyncBufferSize = value;
+        }
+    }
 
     /// <summary>
     /// Define the behavior if the buffer is full.
     /// Drop samples (true), or throw exception (false).
     /// Applies to both IQData mode and raw buffer mode.
     /// </summary>
-    public bool DropSamplesOnFullBuffer { get; set; }
+    /// <remarks>
+    /// Readable after the device is disposed, so configuration can still be inspected; setting
+    /// it then throws, because the value could never take effect.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when setting it on a disposed device.</exception>
+    public bool DropSamplesOnFullBuffer
+    {
+        // The getter is deliberately unguarded: the native callback thread reads it.
+        get => _dropSamplesOnFullBuffer;
+        set
+        {
+            ThrowIfDisposed();
+            _dropSamplesOnFullBuffer = value;
+        }
+    }
 
     /// <summary>
     /// Counter for dropped I/Q samples.
@@ -187,6 +240,12 @@ public sealed partial class RtlSdrManagedDevice
     /// The counter is written from the thread delivering samples and read from the caller's,
     /// so it is updated atomically and read through a barrier: a reset cannot be lost, and a
     /// reader never sees a partially applied update.
+    /// <para>
+    /// Readable after the device is disposed, deliberately, for the same reason as
+    /// <see cref="AsyncReadException"/>: how many samples a finished session lost is a fair
+    /// question afterwards. <see cref="ResetDroppedSamplesCounter"/> is guarded, because that
+    /// one is a write.
+    /// </para>
     /// </remarks>
     public uint DroppedSamplesCount => Volatile.Read(ref _droppedSamplesCount);
 
@@ -197,7 +256,16 @@ public sealed partial class RtlSdrManagedDevice
     /// Must be set before calling <see cref="StartReadSamplesAsync"/>; changes take
     /// effect at the next <see cref="StartReadSamplesAsync"/> call. Default: false.
     /// </summary>
-    public bool UseRawBufferMode { get; set; }
+    /// <exception cref="ObjectDisposedException">Thrown when setting it on a disposed device.</exception>
+    public bool UseRawBufferMode
+    {
+        get => _useRawBufferMode;
+        set
+        {
+            ThrowIfDisposed();
+            _useRawBufferMode = value;
+        }
+    }
 
     /// <summary>
     /// Number of buffers the device fills in rotation while a reading is running.
@@ -222,6 +290,7 @@ public sealed partial class RtlSdrManagedDevice
         get => _transferBufferCount;
         set
         {
+            ThrowIfDisposed();
             ValidateTransferBufferCount(value);
             _transferBufferCount = value;
         }
@@ -234,6 +303,11 @@ public sealed partial class RtlSdrManagedDevice
     /// handler throws, or when the device read fails on its own. The value is reset when a new
     /// reading starts; <see cref="StopReadSamplesAsync"/> also throws it.
     /// </summary>
+    /// <remarks>
+    /// Readable after the device is disposed, deliberately. Disposing routes a failed stop
+    /// into this property precisely so the reason survives; guarding it would discard the
+    /// only account of why the disposal went wrong.
+    /// </remarks>
     public Exception? AsyncReadException => Volatile.Read(ref _asyncReadException);
 
     #endregion
@@ -243,7 +317,14 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Reset the counter for dropped I/Q samples.
     /// </summary>
-    public void ResetDroppedSamplesCounter() => Interlocked.Exchange(ref _droppedSamplesCount, 0);
+    public void ResetDroppedSamplesCounter()
+    {
+        // Guarded although DroppedSamplesCount is not: reading the count afterwards is a fair
+        // post-mortem question, resetting it on a device that will never count again is not.
+        ThrowIfDisposed();
+
+        Interlocked.Exchange(ref _droppedSamplesCount, 0);
+    }
 
     /// <summary>
     /// Get I/Q samples from the async buffer.
@@ -254,6 +335,11 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
     public List<IQData> GetSamplesFromAsyncBuffer(int maxCount)
     {
+        // Guarded directly rather than relying on the AsyncBuffer property below, so the
+        // argument check cannot report a problem with the caller's input when the real
+        // problem is that the device is gone.
+        ThrowIfDisposed();
+
         // Reject a negative count rather than clamping it to zero. It is nearly always a
         // computed value that went negative, and returning an empty list would hide that at
         // the one point it can still be caught.
@@ -302,6 +388,11 @@ public sealed partial class RtlSdrManagedDevice
     /// </exception>
     public RawSampleBuffer? GetRawSamplesFromAsyncBuffer()
     {
+        // Checked first, for the same reason as AsyncBuffer: after disposal the channel is
+        // gone, and reporting that as "not initialized yet" sends the caller to start a
+        // reading on a device that can no longer take one.
+        ThrowIfDisposed();
+
         if (_rawAsyncChannel == null)
         {
             throw new InvalidOperationException(
@@ -629,6 +720,11 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
     {
+        // FIRST, before anything else. Without this the method runs to completion and starts
+        // the worker, which hands the released device handle to the native reader on a thread
+        // with no exception handler: that terminates the process rather than throwing here.
+        ThrowIfDisposed();
+
         // Validate the requested amount before touching any state, then the total the
         // reading would allocate: the per-read and per-buffer limits pass individually but
         // multiply, and this is the first point where both values are known.
@@ -718,6 +814,11 @@ public sealed partial class RtlSdrManagedDevice
     /// <exception cref="RtlSdrManagedDeviceException">Thrown when an error was captured during the reading.</exception>
     public void StopReadSamplesAsync()
     {
+        // Guarded before the no-op path below. Stopping a reading that is not running is
+        // harmless and stays that way, but on a disposed device it is a use-after-dispose
+        // that would otherwise succeed silently.
+        ThrowIfDisposed();
+
         // Check if the worker thread is running
         if (_asyncWorker == null)
         {
