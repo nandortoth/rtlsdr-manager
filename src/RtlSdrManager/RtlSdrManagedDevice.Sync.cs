@@ -35,6 +35,7 @@ public sealed partial class RtlSdrManagedDevice
     /// </summary>
     /// <param name="requestedSamples">Amount of requested samples.</param>
     /// <returns>I/Q data from the device as an IqData list.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public unsafe List<IQData> ReadSamples(int requestedSamples)
     {
@@ -65,7 +66,7 @@ public sealed partial class RtlSdrManagedDevice
         // I/Q data means 2 bytes.
         int requestedBytes = requestedSamples * 2;
 
-        // Rent a scratch buffer from the shared pool (may be larger than requested).
+        // Rent a scratch buffer from the shared pool (can be larger than requested).
         byte[] buffer = ArrayPool<byte>.Shared.Rent(requestedBytes);
         try
         {

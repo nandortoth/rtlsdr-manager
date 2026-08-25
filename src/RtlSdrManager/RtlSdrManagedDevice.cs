@@ -29,12 +29,13 @@ namespace RtlSdrManager;
 /// Class for a managed (opened) RTL-SDR device.
 /// </summary>
 /// <remarks>
-/// After the device is disposed it can still be inspected but no longer operated. Reading
-/// what the device was told, what it recorded, or what it is
-/// (<see cref="DeviceInfo"/>, <see cref="AsyncReadException"/>,
-/// <see cref="DroppedSamplesCount"/>, the configuration properties) keeps working, so a
-/// cleanup or logging path is safe. Configuring it, reading samples and anything that reaches
-/// the hardware throw <see cref="ObjectDisposedException"/>.
+/// After the device is disposed it can still be inspected but no longer operated. Exactly
+/// four things keep working, so a cleanup or logging path is safe: <see cref="DeviceInfo"/>,
+/// <see cref="ToString()"/>, <see cref="AsyncReadException"/> and
+/// <see cref="DroppedSamplesCount"/>, plus reading back the configuration properties.
+/// Everything else throws <see cref="ObjectDisposedException"/>, including
+/// <see cref="TunerType"/>, which would otherwise answer from its cache and so depend on
+/// whether it happened to be read earlier.
 /// <para>
 /// The class is not safe to use from several threads at once. Disposing it while another
 /// thread is calling into it is undefined regardless of the checks described here.
@@ -262,7 +263,12 @@ public sealed partial class RtlSdrManagedDevice : IDisposable
     /// Queried once and cached: the tuner is part of the device and cannot change while it is
     /// open. An unrecognized tuner is not cached, so the failure is reported on every access
     /// rather than being remembered.
+    /// <para>
+    /// Unavailable once the device is disposed, even though the value was cached. Answering
+    /// from the cache would make the result depend on whether it happened to be read earlier.
+    /// </para>
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the tuner is not recognized.</exception>
     public TunerTypes TunerType
     {

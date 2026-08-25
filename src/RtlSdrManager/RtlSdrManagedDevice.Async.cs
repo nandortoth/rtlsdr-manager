@@ -243,8 +243,8 @@ public sealed partial class RtlSdrManagedDevice
     /// <para>
     /// Readable after the device is disposed, deliberately, for the same reason as
     /// <see cref="AsyncReadException"/>: how many samples a finished session lost is a fair
-    /// question afterwards. <see cref="ResetDroppedSamplesCounter"/> is guarded, because that
-    /// one is a write.
+    /// question afterward. <see cref="ResetDroppedSamplesCounter"/> is guarded, because that
+    /// one is writing.
     /// </para>
     /// </remarks>
     public uint DroppedSamplesCount => Volatile.Read(ref _droppedSamplesCount);
@@ -282,6 +282,7 @@ public sealed partial class RtlSdrManagedDevice
     /// reading starts, so changing it during a reading has no effect until the next one.
     /// </para>
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when setting it on a disposed device.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when the value is outside 1 to 64.
     /// </exception>
@@ -317,9 +318,10 @@ public sealed partial class RtlSdrManagedDevice
     /// <summary>
     /// Reset the counter for dropped I/Q samples.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed. Reading <see cref="DroppedSamplesCount"/> still works.</exception>
     public void ResetDroppedSamplesCounter()
     {
-        // Guarded although DroppedSamplesCount is not: reading the count afterwards is a fair
+        // Guarded although DroppedSamplesCount is not: reading the count afterward is a fair
         // post-mortem question, resetting it on a device that will never count again is not.
         ThrowIfDisposed();
 
@@ -332,7 +334,9 @@ public sealed partial class RtlSdrManagedDevice
     /// <param name="maxCount">Maximum amount of requested I/Q samples. If there are fewer samples in the buffer,
     /// than the requested amount, maxCount will be reduced.</param>
     /// <returns>List if I/Q samples.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the buffer is not initialized yet.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when maxCount is negative.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no reading has been started.</exception>
     public List<IQData> GetSamplesFromAsyncBuffer(int maxCount)
     {
         // Guarded directly rather than relying on the AsyncBuffer property below, so the
@@ -383,6 +387,7 @@ public sealed partial class RtlSdrManagedDevice
     /// The caller MUST call <see cref="RawSampleBuffer.Return"/> after processing.
     /// </summary>
     /// <returns>Raw sample buffer, or null if none available.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
     /// <exception cref="InvalidOperationException">
     /// Thrown when raw buffer mode is not active or <see cref="StartReadSamplesAsync"/> has not been called.
     /// </exception>
@@ -652,7 +657,7 @@ public sealed partial class RtlSdrManagedDevice
     /// being set instead of the setter's hidden argument.
     /// <para>
     /// The upper bound is this library's own. The native layer accepts any nonzero count and
-    /// allocates that many buffers without a ceiling of its own, so nothing below this
+    /// allocates that many buffers without a ceiling of its own, so nothing below these
     /// rejects an absurd value.
     /// </para>
     /// </remarks>
@@ -683,7 +688,7 @@ public sealed partial class RtlSdrManagedDevice
     internal static void ValidateTotalTransferSize(uint requestedSamples, uint transferBufferCount)
     {
         // Int128, because the product of two uint values doubled does not fit in long or
-        // ulong: at the extremes it reaches about 3.7e19 against a ulong ceiling of 1.8e19,
+        // ulong: at the extremes it reaches about 3.7e19 against an ulong ceiling of 1.8e19,
         // and a wrapped total compares as small enough to pass. The real call path validates
         // both operands first, but this method is reachable on its own.
         Int128 totalBytes = (Int128)requestedSamples * 2 * transferBufferCount;
@@ -716,6 +721,7 @@ public sealed partial class RtlSdrManagedDevice
     /// </remarks>
     /// <param name="requestedSamples">Amount of requested samples by one device read.
     /// The byte size (requested samples * 2) must be a multiple of 512.</param>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when requestedSamples is not supported.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException"></exception>
     public void StartReadSamplesAsync(uint requestedSamples = AsyncDefaultReadLength)
@@ -772,7 +778,7 @@ public sealed partial class RtlSdrManagedDevice
         // StopReadSamplesAsync after the worker thread has finished.
         _deviceContext = GCHandle.Alloc(this);
 
-        // Start the worker with highest priority. The thread is a background thread, so a
+        // Start the worker with the highest priority. The thread is a background thread, so a
         // worker left running on a wedged device (see StopReadSamplesAsync / Dispose) cannot
         // block process exit.
         _asyncWorker = new Thread(SamplesAsyncReader)
@@ -810,6 +816,7 @@ public sealed partial class RtlSdrManagedDevice
     /// another reading from: see the remarks on <see cref="StartReadSamplesAsync"/>. Close the
     /// device and open it again if more samples are needed.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the device is disposed. On a live device, stopping when no reading is running is harmless.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the reading cannot be stopped.</exception>
     /// <exception cref="RtlSdrManagedDeviceException">Thrown when an error was captured during the reading.</exception>
     public void StopReadSamplesAsync()

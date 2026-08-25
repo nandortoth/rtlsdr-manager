@@ -22,9 +22,10 @@ namespace RtlSdrManager.Tests;
 
 /// <summary>
 /// Unit tests for the tuner gain table logic.
-/// The tables below are copied verbatim from librtlsdr's rtlsdr_get_tuner_gains
-/// (rtl-sdr v2.0.3, src/librtlsdr.c), so the tests exercise the real hardware data
-/// without needing a device.
+/// The tables below are copied verbatim from the gain tables the native library reports,
+/// as of rtl-sdr v2.0.3, so the tests exercise the real hardware data without needing a
+/// device. The version matters: if upstream ever revises a table, these fixtures have to be
+/// re-checked against it rather than trusted.
 /// </summary>
 public class TunerGainTests
 {
@@ -99,10 +100,8 @@ public class TunerGainTests
     }
 
     [Fact]
-    public void TenthsOfDb_AreConvertedToDb()
-    {
+    public void TenthsOfDb_AreConvertedToDb() =>
         Assert.Equal([-9.9, -4.0, 7.1, 17.9, 19.2], RtlSdrManagedDevice.ToSupportedGains(Fc0012Gains));
-    }
 
     [Theory]
     [InlineData(0)]     // regression: 0.0 dB used to be rejected as unsupported
@@ -114,7 +113,7 @@ public class TunerGainTests
     [Theory]
     [InlineData(1)]
     [InlineData(495)]   // 49.5 dB is not a step; 49.6 dB is
-    [InlineData(-10)]   // an E4000 step, not an R82xx one
+    [InlineData(-10)]   // an E4000 step, not a R82xx one
     public void R82xx_UnsupportedSteps_AreRejected(int gainTenths) =>
         Assert.False(RtlSdrManagedDevice.IsSupportedGain(R82xxGains, gainTenths));
 
