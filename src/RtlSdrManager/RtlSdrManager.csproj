@@ -5,6 +5,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <!-- Assembly Information -->
@@ -47,8 +48,10 @@
         <PackageReleaseNotes>
             v0.9.0 (UNRELEASED - set the date when tagging):
 
-            PLACEHOLDER - replace before release. No 0.9.0 work has landed yet; these notes
-            must mirror the CHANGELOG section once it has real entries.
+            ADDED:
+            - Trim and Native AOT compatibility. The library can now be used from
+              AOT-published and trimmed applications without trim warnings. No effect on
+              other consumers.
 
             KNOWN LIMITATION:
             - On macOS, starting a second asynchronous reading in the same process can fault

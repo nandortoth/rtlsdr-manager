@@ -25,6 +25,8 @@ RTL-SDR Manager provides a high-level, type-safe API for controlling RTL2832U-ba
 
 - **High Performance** — Uses `LibraryImport` source-generated P/Invoke for optimal native library calls.
 
+- **Trim and AOT Ready** — Publishes cleanly from Native AOT applications, for smaller and faster-starting deployments on Raspberry Pi and other embedded targets.
+
 - **Production Ready** — Proper exception handling, `IDisposable` patterns, null safety, and scoped console output suppression.
 
 ## Installation

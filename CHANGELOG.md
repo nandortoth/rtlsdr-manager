@@ -6,9 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.0] - UNRELEASED
 
-> **PLACEHOLDER.** Nothing has landed in 0.9.0 yet; this section exists because the version
-> was bumped at the start of the cycle. Replace it with real entries as work lands, and set
-> the heading date to the day 0.9.0 is tagged. Planned scope is tracked outside this repo.
+> Set the heading date and the summary-table row when 0.9.0 is tagged.
+
+### Added
+- Trim and Native AOT compatibility. The library can now be used from AOT-published and
+  trimmed applications without trim warnings, and trimming consumers get a smaller output.
+  Nothing changes for anyone else
 
 ## [0.8.0] - 2026-08-25
 
@@ -468,7 +471,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
-| **0.9.0** | UNRELEASED | _In progress; update this row and the date when tagging_ |
+| **0.9.0** | UNRELEASED | Trim and Native AOT compatibility _(update when tagging)_ |
 | **0.8.0** | 2026-08-25 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
