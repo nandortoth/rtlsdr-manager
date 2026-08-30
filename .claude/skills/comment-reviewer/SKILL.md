@@ -99,7 +99,7 @@ summary, always document:
 ### 4. Project Writing Conventions
 
 The full rules live in `CLAUDE.md` under "Code and Documentation Conventions". Check every
-comment against all three:
+comment against all four:
 
 **American English.** *behavior*, *synchronization*, *initialize*, *center*, *canceled*,
 *analyze* — not *behaviour*, *synchronisation*, *initialise*, *centre*, *cancelled*.
@@ -128,6 +128,60 @@ consumer must install the native library) and **the KerberosSDR fork requirement
 `internal` and `private` members are **exempt and should keep the native detail** — that is
 where the reasoning belongs, and it is not shipped. When flagging a public leak, check
 whether the explanation should move to an internal member rather than be deleted.
+
+**Do not cite external source, or name symbols that do not exist here.** This bounds the
+previous rule: internal comments *should* explain upstream behavior, but never by pointing
+at where it lives. Severity: **Warning** — a comment naming something absent from this
+codebase is worse than no comment, because it sends the reader hunting.
+
+Source locations rot silently the moment `../rtl-sdr` moves off its tag:
+
+❌ `// librtlsdr bounds neither (librtlsdr.c:1891-1899)`
+✅ `// The native layer bounds neither the size nor the count`
+
+Upstream identifiers cannot be found by anyone searching this repository:
+
+❌ `// passing 0 makes librtlsdr substitute its own DEFAULT_BUF_NUMBER`
+❌ `// allocates buf_len bytes buf_num times`
+✅ `// zero means "use your own default" to the native layer`
+
+Applies at **every** visibility, unlike the rule above: naming the library in prose stays
+fine on internal members, but citing its source does not. One exception, for data copied
+verbatim such as the tuner gain tables in the tests: cite the upstream **version** so the
+fixture can be re-checked, but not a file or line.
+
+**Check this mechanically**, and derive it rather than listing names. Upstream has hundreds of
+identifiers; any hardcoded list catches only the ones somebody already thought of. The
+reliable test is whether a token in a comment can be found anywhere else in this codebase:
+
+```bash
+files=$(find src tests tools samples -name '*.cs' -not -path '*/bin/*' -not -path '*/obj/*')
+
+grep -hoE "^\s*(///|//).*" $files \
+  | grep -oE "\b[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+\b" | sort -u |
+while read -r tok; do
+    n=$(grep -hE "$tok" $files | grep -vE "^\s*(///|//)" | wc -l | tr -d ' ')
+    [ "$n" -eq 0 ] && echo "UNRESOLVED: $tok"
+done
+```
+
+It extracts every snake_case token from comments and reports those appearing on no
+non-comment line. That distinguishes the two cases correctly without a list:
+`rtlsdr_set_center_freq` resolves, because it is a `LibraryImport` entry point in
+`Interop/LibRtlSdr.cs`, and CLAUDE.md positively encourages naming it on an internal member.
+`buf_len` does not resolve, because it exists only inside the native library.
+
+Source locations need a separate, simpler check:
+
+```bash
+grep -rnE "^\s*(///|//).*[a-z_0-9]+\.[ch]\b" src tests tools samples | grep -vE "/(bin|obj)/"
+```
+
+**Two things the token check will surface that are not violations.** Command-line tools a
+user actually runs (`rtl_test`, `rtl_eeprom`) are user-actionable, in the same spirit as the
+installation-prerequisite exception above; naming them is fine in prose, and in `docs/` a
+literal command line is the point. And a version-pinned provenance note for verbatim-copied
+data is accepted, so long as it names no file or line.
 
 ### 5. Consistency Across Codebase
 

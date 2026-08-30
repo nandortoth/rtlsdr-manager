@@ -103,7 +103,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Open the RTL-SDR device for further usage (internal raw version).
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="index">Device Index.</param>
     /// <returns>
     /// 0 on success.
@@ -134,7 +134,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Close the RTL-SDR device (internal - called by SafeHandle).
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_close")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -160,7 +160,7 @@ internal static partial class LibRtlSdr
     /// Get crystal oscillator frequencies used for the RTL2832 and the tuner IC.
     /// Usually both ICs use the same clock.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="rtlFreq">Buffer for frequency value used to clock the RTL2832 in Hz.</param>
     /// <param name="tunerFreq">Buffer for frequency value used to clock the tuner IC in Hz.</param>
     /// <returns>0 on success.</returns>
@@ -171,7 +171,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Set frequency the device must be tuned to.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="freq">Frequency in Hz.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_center_freq")]
@@ -181,7 +181,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get actual frequency the device is tuned to.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on error, frequency in Hz otherwise.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_center_freq")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -190,7 +190,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Set the frequency correction value for the device.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="ppm">Correction value in parts per million (ppm).</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_freq_correction")]
@@ -200,7 +200,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get actual frequency correction value of the device
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>Correction value in parts per million (ppm).</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_freq_correction")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -209,7 +209,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Set the bandwidth for the device.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="bw">Bandwidth in Hz. Zero means automatic BW selection.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_tuner_bandwidth")]
@@ -219,8 +219,8 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get the tuner type.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
-    /// <returns>RTLSDR_TUNER_UNKNOWN on error, tuner type otherwise.</returns>
+    /// <param name="dev">Device handle.</param>
+    /// <returns><see cref="TunerTypes.Unknown"/> on error, the tuner type otherwise.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_tuner_type")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
     internal static partial TunerTypes rtlsdr_get_tuner_type(SafeRtlSdrHandle dev);
@@ -230,7 +230,7 @@ internal static partial class LibRtlSdr
     /// NOTE: The gains argument must be allocated by the caller. If NULL is
     /// being given instead, the number of available gain values will be returned.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="gains">Buffer for array of gain values. In tenths of a dB, 115 means 11.5 dB.</param>
     /// <returns>Less than 0 on error, number of available (returned) gain values otherwise</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_tuner_gains")]
@@ -242,7 +242,7 @@ internal static partial class LibRtlSdr
     /// Manual gain mode must be enabled for this to work.
     /// Valid gain values may be queried with rtlsdr_get_tuner_gains function.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="gain">Gain in tenths of a dB, 115 means 11.5 dB.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_tuner_gain")]
@@ -252,7 +252,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get actual gain the device is configured to.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on error, gain in tenths of a dB, 115 means 11.5 dB.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_tuner_gain")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -262,7 +262,7 @@ internal static partial class LibRtlSdr
     /// Set the gain mode (automatic/manual) for the device.
     /// Manual gain mode must be enabled for the gain setter function to work.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="manual">Gain mode, 1 means manual gain mode shall be enabled.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_tuner_gain_mode")]
@@ -272,7 +272,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Enable or disable the internal digital AGC of the RTL2832.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">AGC mode, 1 means enabled, 0 disabled.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_agc_mode")]
@@ -285,7 +285,7 @@ internal static partial class LibRtlSdr
     /// the IF-frequency of the DDC, which can be used to tune from 0 to 28.8 MHz
     /// (crystal frequency of the RTL2832).
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">0 means disabled, 1 I-ADC input enabled, 2 Q-ADC input enabled.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_direct_sampling")]
@@ -295,7 +295,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get state of the direct sampling mode.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>
     /// -1 on error
     /// 0 means disabled
@@ -310,7 +310,7 @@ internal static partial class LibRtlSdr
     /// Enable or disable offset tuning for zero-IF tuners, which allows to avoid
     /// problems caused by the DC offset of the ADCs and 1/f noise.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">0 means disabled, 1 enabled.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_offset_tuning")]
@@ -320,7 +320,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get state of the offset tuning mode.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>
     /// -1 on error
     /// 0 means disabled
@@ -334,7 +334,7 @@ internal static partial class LibRtlSdr
     /// Set the sample rate for the device, also selects the base band filters
     /// according to the requested sample rate for tuners where this is possible.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="rate">
     /// The sample rate to be set, possible values are:
     ///   225001 - 300000 Hz
@@ -349,7 +349,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Get actual sample rate the device is configured to.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on error, sample rate in Hz otherwise.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_get_sample_rate")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -359,7 +359,7 @@ internal static partial class LibRtlSdr
     /// Enable test mode that returns an 8 bit counter instead of the samples.
     /// The counter is generated inside the RTL2832.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">Test mode, 1 means enabled, 0 disabled.</param>
     /// <returns></returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_testmode")]
@@ -369,7 +369,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Reset the buffer of the device.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_reset_buffer")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -378,7 +378,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Read samples from the device synchronously.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="buf">Buffer where data will be stored as int[].</param>
     /// <param name="len">Requested samples.</param>
     /// <param name="nRead">Received samples.</param>
@@ -391,11 +391,12 @@ internal static partial class LibRtlSdr
     /// Read samples from the device asynchronously. This function will block until
     /// it is being canceled using rtlsdr_cancel_async().
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="cb">Callback function to return received samples.</param>
     /// <param name="ctx">User specific context to pass via the callback function.</param>
     /// <param name="bufNum">
-    /// Optional buffer count, buf_num * buf_len = overall buffer size set to 0 for default buffer count (15).
+    /// Optional buffer count; bufNum * bufLen is the overall buffer size. Set to 0 for the
+    /// default count (15).
     /// </param>
     /// <param name="bufLen">
     /// Optional buffer length, must be multiple of 512, should be a multiple of 16384 (URB size), set to 0
@@ -410,7 +411,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Cancel all pending asynchronous operations on the device.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_cancel_async")]
     [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -419,7 +420,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Enable or disable the Bias Tee on GPIO pin 0.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">1 for Bias Tee on. 0 for Bias Tee off.</param>
     /// <returns>-1 if device is not initialized. 0 otherwise.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_bias_tee")]
@@ -429,7 +430,7 @@ internal static partial class LibRtlSdr
     /// <summary>
     /// Enable or disable the Bias Tee on the given GPIO pin.
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="gpio">The GPIO pin to configure as a Bias Tee control.</param>
     /// <param name="on">1 for Bias Tee on. 0 for Bias Tee off.</param>
     /// <returns>-1 if device is not initialized. 0 otherwise.</returns>
@@ -442,7 +443,7 @@ internal static partial class LibRtlSdr
     /// Can be used only with the modified RTL-SDR library for KerberosSDR:
     /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="on">0 means disabled, 1 enabled.</param>
     /// <param name="gpio">Number of the GPIO pin to enable or disable.</param>
     /// <returns>
@@ -459,7 +460,7 @@ internal static partial class LibRtlSdr
     /// Can be used only with the modified RTL-SDR library for KerberosSDR:
     /// https://github.com/rtlsdrblog/rtl-sdr-kerberos/
     /// </summary>
-    /// <param name="dev">Device pointer.</param>
+    /// <param name="dev">Device handle.</param>
     /// <param name="dither">0 means disabled, 1 enabled.</param>
     /// <returns>0 on success.</returns>
     [LibraryImport(RtlSdrLibrary, EntryPoint = "rtlsdr_set_dithering")]

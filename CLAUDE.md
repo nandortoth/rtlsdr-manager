@@ -152,6 +152,39 @@ detail:
 codes, and upstream quirks: that is precisely where the reasoning belongs, and it is not
 shipped to consumers. Keep the detail; just move it inward.
 
+### Do not cite external source, or name symbols that do not exist here
+
+The previous rule says internal comments *should* explain upstream behavior. This one bounds
+how. Two things never belong in a comment, at any visibility:
+
+**Source locations in the upstream C.** They are pinned to a tag, and they rot silently the
+moment `../rtl-sdr` moves.
+
+❌ `// librtlsdr bounds neither (librtlsdr.c:1891-1899)`
+✅ `// The native layer bounds neither the size nor the count`
+
+**Identifiers that cannot be found in this codebase.** The test is not whether a name looks
+foreign, it is whether a reader who greps for it finds anything.
+
+❌ `// passing 0 makes librtlsdr substitute its own DEFAULT_BUF_NUMBER`
+❌ `// allocates buf_len bytes buf_num times`
+✅ `// zero means "use your own default" to the native layer`
+
+Native **function** names are the opposite case and stay welcome on internal members: every
+one this library binds is a `LibraryImport` entry point in `Interop/LibRtlSdr.cs`, so
+`rtlsdr_set_center_freq` resolves for anyone who looks. `buf_len` does not, because it lives
+only inside the native library. The previous rule already asks for that detail inward; this
+one only says point at things that exist here.
+
+Two accepted exceptions: **command-line tools a user runs** (`rtl_test`, `rtl_eeprom`) are
+user-actionable rather than implementation detail, so naming them in prose is fine and a
+literal command line in `docs/` is the point; and **provenance for verbatim-copied data**,
+such as the tuner gain tables in the tests, may cite the upstream **version** so the fixture
+can be re-checked, but never a file or line.
+
+Severity: **Warning**. A comment naming something that does not exist is worse than no
+comment, because it sends the reader looking.
+
 ## Git Rules
 
 **Do not perform any git commands.** The user handles all git operations (commit, branch,
