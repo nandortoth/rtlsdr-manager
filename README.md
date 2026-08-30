@@ -39,7 +39,7 @@ dotnet add package RtlSdrManager
 Install-Package RtlSdrManager
 
 # PackageReference (in .csproj)
-<PackageReference Include="RtlSdrManager" Version="0.8.0" />
+<PackageReference Include="RtlSdrManager" Version="0.9.0" />
 ```
 
 ### Prerequisites
@@ -177,7 +177,7 @@ rethrown by `StopReadSamplesAsync()`, and stays observable via `AsyncReadExcepti
 the next `StartReadSamplesAsync()`.
 
 Unplugging a device mid-reading belongs to that last case, but how it surfaces depends on
-the native library. With librtlsdr 2.0.3 or later, the native reader returns promptly and
+the native library. With librtlsdr 2.0.3 or later, the native reader returns promptly, and
 you get the underlying error. With earlier versions it can block indefinitely instead, and
 `StopReadSamplesAsync()` gives up after five seconds with a stop-timeout error — the device
 is then left untouched on purpose, so no native callback runs against freed state.
@@ -454,14 +454,14 @@ rtlsdr-manager/
 
 This library supports RTL-SDR devices with the following tuners:
 
-| Tuner | Frequency Range | Notes |
-|---|---|---|
-| Elonics E4000 | 52 -- 2200 MHz | No longer manufactured. Often cannot lock near 1100 -- 1250 MHz; the exact gap varies by device |
-| Rafael Micro R820T | 24 -- 1766 MHz | Most common, excellent performance |
-| Rafael Micro R828D | 24 -- 1766 MHz | Similar to R820T |
-| Fitipower FC0012 | 22 -- 948.6 MHz | Basic performance |
-| Fitipower FC0013 | 22 -- 1100 MHz | Basic performance |
-| FCI FC2580 | 146 -- 308 MHz, 438 -- 924 MHz | Good performance |
+| Tuner              | Frequency Range                | Notes                                                                                           |
+|--------------------|--------------------------------|-------------------------------------------------------------------------------------------------|
+| Elonics E4000      | 52 -- 2200 MHz                 | No longer manufactured. Often cannot lock near 1100 -- 1250 MHz; the exact gap varies by device |
+| Rafael Micro R820T | 24 -- 1766 MHz                 | Most common, excellent performance                                                              |
+| Rafael Micro R828D | 24 -- 1766 MHz                 | Similar to R820T                                                                                |
+| Fitipower FC0012   | 22 -- 948.6 MHz                | Basic performance                                                                               |
+| Fitipower FC0013   | 22 -- 1100 MHz                 | Basic performance                                                                               |
+| FCI FC2580         | 146 -- 308 MHz, 438 -- 924 MHz | Good performance                                                                                |
 
 ## Known Limitations
 

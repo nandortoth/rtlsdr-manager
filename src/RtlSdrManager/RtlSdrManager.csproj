@@ -9,9 +9,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.8.0</Version>
-        <FileVersion>0.8.0.0</FileVersion>
-        <AssemblyVersion>0.8.0.0</AssemblyVersion>
+        <Version>0.9.0</Version>
+        <FileVersion>0.9.0.0</FileVersion>
+        <AssemblyVersion>0.9.0.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -45,56 +45,10 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.8.0 (2026-08-25):
+            v0.9.0 (UNRELEASED - set the date when tagging):
 
-            ADDED:
-            - SupportedFrequencyRanges on RtlSdrManagedDevice, with the TunerCapabilities,
-              DemodulatorCapabilities and FrequencyRange types behind it, reporting what the
-              device can currently reach: the tuner's ranges, or the ADC's while direct
-              sampling is active.
-            - OpenManagedDeviceBySerial(), opening a device by serial number rather than by
-              index. Indices are positional and shift when devices are plugged or unplugged;
-              a serial stays with the device. Throws if several devices share the serial.
-            - TransferBufferCount, controlling how many buffers the device fills in rotation
-              during an asynchronous reading. Trades tolerance of a slow consumer against
-              worst-case latency; previously fixed at 15 and unreachable.
-
-            FIXED:
-            - Direct sampling is usable at last. CenterFrequency validated against the tuner's
-              range even while direct sampling bypassed the tuner, so every HF frequency was
-              rejected. The range is now the ADC's: 0 Hz to half the crystal frequency.
-            - The E4000 accepts exactly 1100 and 1250 MHz, which an asymmetric comparison
-              rejected even though both are documented as supported.
-            - 0.0 dB is accepted as a tuner gain on the R820T/R828D, where it is the tuner's
-              lowest gain step. It was treated as an error value, so SupportedTunerGains
-              reported 28 of 29 gains and TunerGain = 0.0 threw.
-            - SetMaximumTunerGain()/SetMinimumTunerGain() on a tuner without manual gain
-              control now name the cause, instead of throwing "Sequence contains no elements".
-            - SetBiasTeeGPIO() works on every tuner, not just the R820T. The GPIO pins belong
-              to the demodulator, so the restriction was never justified.
-
-            CHANGED:
-            - BREAKING: using a disposed device now throws ObjectDisposedException. Most
-              importantly, StartReadSamplesAsync() on a disposed device terminated the process;
-              configuring one, resetting the dropped-sample counter and StopReadSamplesAsync()
-              succeeded silently. A disposed device can still be inspected: DeviceInfo,
-              ToString(), AsyncReadException, DroppedSamplesCount and the configuration
-              getters keep working.
-            - BREAKING: reading TunerGain, CenterFrequency or SampleRate before one has been
-              set throws InvalidOperationException instead of RtlSdrLibraryExecutionException.
-              All three reported a device failure for what is a usage error.
-            - Enabling direct sampling resets the center frequency to 0 Hz when the current one
-              is beyond the ADC's reach, because the demodulator would truncate it silently.
-            - BREAKING: SetBiasTeeGPIO() throws ArgumentOutOfRangeException for a pin outside
-              0..7, instead of RtlSdrLibraryExecutionException.
-            - BREAKING: RtlSdrDeviceManager.Devices is now IReadOnlyDictionary, so the device
-              table can no longer be mutated by callers. Reading and enumeration unchanged.
-            - BREAKING: StartReadSamplesAsync() caps a single read at 8388608 samples (16 MiB)
-              and the total across all transfer buffers at 256 MiB. The old limit allowed a
-              ~4 GB request, allocated once per buffer, failing with no useful diagnostic.
-            - SetMinimumTunerGain() selects 0.0 dB on the R820T/R828D instead of 0.9 dB.
-            - The E4000's 1100 to 1250 MHz gap is no longer rejected up front: its boundaries
-              vary between devices, so the tuner decides and reports the outcome.
+            PLACEHOLDER - replace before release. No 0.9.0 work has landed yet; these notes
+            must mirror the CHANGELOG section once it has real entries.
 
             KNOWN LIMITATION:
             - On macOS, starting a second asynchronous reading in the same process can fault

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - UNRELEASED
+
+> **PLACEHOLDER.** Nothing has landed in 0.9.0 yet; this section exists because the version
+> was bumped at the start of the cycle. Replace it with real entries as work lands, and set
+> the heading date to the day 0.9.0 is tagged. Planned scope is tracked outside this repo.
+
 ## [0.8.0] - 2026-08-25
 
 ### Added
@@ -462,6 +468,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.9.0** | UNRELEASED | _In progress; update this row and the date when tagging_ |
 | **0.8.0** | 2026-08-25 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |
@@ -664,6 +671,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.9.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.9.0
 [0.8.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.8.0
 [0.7.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.1
 [0.7.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.0
