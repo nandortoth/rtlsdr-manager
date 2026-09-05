@@ -84,8 +84,14 @@ public static class Deadline
     /// <param name="condition">Condition to wait for.</param>
     /// <param name="deadline">How long to wait.</param>
     /// <returns>True when the condition held in time.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when condition is null.</exception>
     public static bool WaitUntil(Func<bool> condition, TimeSpan deadline)
     {
+        if (condition == null)
+        {
+            throw new ArgumentNullException(nameof(condition), "Condition cannot be null.");
+        }
+
         var elapsed = Stopwatch.StartNew();
 
         while (elapsed.Elapsed < deadline)

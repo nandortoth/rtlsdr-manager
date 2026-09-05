@@ -53,8 +53,14 @@ public static class TestModeCounter
     /// runs I, Q, I, Q. Only the increments are checked, because the counter is already
     /// running by the time a reading starts.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when samples is null.</exception>
     public static bool Matches(List<IQData> samples)
     {
+        if (samples == null)
+        {
+            throw new ArgumentNullException(nameof(samples), "Samples cannot be null.");
+        }
+
         if (samples.Count < 2)
         {
             return false;
@@ -81,8 +87,14 @@ public static class TestModeCounter
     /// </summary>
     /// <param name="buffer">Buffer to inspect.</param>
     /// <returns>True when each byte is one greater than the one before it.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when buffer is null.</exception>
     public static bool Matches(RawSampleBuffer buffer)
     {
+        if (buffer == null)
+        {
+            throw new ArgumentNullException(nameof(buffer), "Buffer cannot be null.");
+        }
+
         if (buffer.ByteLength < 2)
         {
             return false;
