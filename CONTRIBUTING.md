@@ -509,7 +509,9 @@ public async void ProcessData()
 Ensure your PR meets these requirements:
 
 - [ ] Code follows the project's style guidelines (`.editorconfig`)
-- [ ] Code builds without warnings: `dotnet build`
+- [ ] Code builds without warnings: `dotnet build --no-incremental` (a plain `dotnet build`
+      does not re-report warnings for projects it considers up to date, so it can print zero
+      while warnings exist)
 - [ ] All tests pass: `dotnet test`
 - [ ] `tools/test-verify.sh` passes, if the change touches device behavior
 - [ ] New code has XML documentation comments

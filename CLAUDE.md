@@ -29,6 +29,27 @@ dotnet pack --configuration Release                 # Create NuGet packages
 Build output goes to `artifacts/packages/` (NuGet packages) and
 `artifacts/binaries/{RtlSdrManager,Samples}/`. The `artifacts/` directory is gitignored.
 
+### No build warnings
+
+**Zero warnings is the standard, in every project including the tools.** `.editorconfig`
+raises 38 analyzer rules to warning severity on purpose, so a warning is a deliberate signal
+rather than noise to be tolerated. Fix the cause; suppress a rule only with a comment saying
+why it does not apply here.
+
+**A repeated `dotnet build` does not re-report warnings** for projects it already considers up
+to date, so the second run prints `0 Warning(s)` whether or not any exist. That makes an
+incremental build worthless as evidence, and it has been reported here as a clean build when
+it was not. Confirm with a build that actually recompiles:
+
+```bash
+dotnet build --no-incremental      # or: dotnet clean && dotnet build
+```
+
+Check `Release` as well when a change could behave differently there. Note also that widening
+a type's visibility can introduce warnings that did not apply before: rules such as `CA1062`
+only fire on externally visible members, so moving a helper into its own assembly can surface
+them where extracting it changed nothing else.
+
 The test suite requires **no RTL-SDR hardware and no `librtlsdr` installation** — it covers
 only hardware-independent components.
 
