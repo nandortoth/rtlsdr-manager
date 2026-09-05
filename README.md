@@ -467,27 +467,45 @@ This library supports RTL-SDR devices with the following tuners:
 
 ## Known Limitations
 
-### Repeated asynchronous readings on macOS
+### Ending an asynchronous reading can terminate the process
 
-Starting a second asynchronous reading in the same process can terminate it. Ending a reading
-releases its transfer buffers without waiting for every canceled transfer to report, and a
-late completion then faults inside the USB layer. The failure is abrupt, with no managed
-exception to catch.
+Ending an asynchronous reading releases the device's transfer buffers before every canceled
+transfer has finished reporting. If one reports afterwards, it writes into released memory and
+the process dies abruptly, with no managed exception to catch. This is a defect in the native
+library, not in this one.
 
-Close the device and open it again between readings rather than calling
-`StartReadSamplesAsync()` a second time on the same instance. That greatly reduces the risk
-without removing it entirely.
+It has two shapes, depending on what happens first: a late transfer completion faulting on the
+USB event thread, or `CloseManagedDevice()` tearing the device down while transfers are still
+outstanding.
 
-**Most applications never meet this.** It requires all of macOS, the asynchronous API, and
-more than one reading per process. Unaffected are:
+**Use one reading per process, and retune while it runs.** Changing `CenterFrequency` during a
+reading is safe and needs no stop, so a scanner or sweep should start once, retune between
+measurements, and stop once at the end:
 
-- Streaming once per device, which is the usual shape
-- `ReadSamples()`, the synchronous API, on any platform
-- Changing `CenterFrequency` while a reading is running, so scanning by retuning mid-stream
-  is safe
+```csharp
+device.StartReadSamplesAsync();
 
-The root cause is in the native layer's cancellation path, which waits for transfers to
-settle on Windows but not on the other platforms.
+foreach (var frequency in frequencies)
+{
+    device.CenterFrequency = frequency;
+    device.ResetDeviceBuffer();
+    Analyse(frequency, device.GetSamplesFromAsyncBuffer(16 * 1024));
+}
+
+device.StopReadSamplesAsync();
+```
+
+**Do not** stop and start repeatedly, and **do not** close and reopen the device between
+readings. Both reach the defect; measured on macOS, closing and reopening reached it sooner
+than restarting on the same instance.
+
+Unaffected: `ReadSamples()`, the synchronous API, on every platform; and a process that
+streams once and exits, which is the usual shape.
+
+Observed on macOS. The native code path lacks the same protection on Linux, so it is likely
+affected there too, and Windows has a partial mitigation that may make it less exposed. A fix
+has been submitted upstream; once a corrected `librtlsdr` is released, upgrading it removes
+the problem.
 
 ## Contributing
 

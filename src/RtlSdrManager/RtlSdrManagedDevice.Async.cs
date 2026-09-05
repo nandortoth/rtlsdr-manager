@@ -707,16 +707,21 @@ public sealed partial class RtlSdrManagedDevice
     /// Start reading samples (I/Q) from the device asynchronously.
     /// </summary>
     /// <remarks>
-    /// To read again after stopping, close the device and open it again rather than calling
-    /// this a second time on the same instance. Ending a reading releases its transfer buffers
-    /// without waiting for every canceled transfer to report, and on macOS a late completion
-    /// can then fault inside the USB layer and terminate the process.
+    /// Start one reading per process and leave it running. Ending a reading releases the
+    /// device's transfer buffers before every canceled transfer has finished reporting, and a
+    /// late completion then writes into released memory, terminating the process. This is a
+    /// defect in the native library rather than in this one, and no managed exception is
+    /// raised.
     /// <para>
-    /// The risk grows with the number of readings a process performs, and closing in between
-    /// lowers it without removing it. Measured with a harness that reads and stops six times in
-    /// one process, about half of runs crashed when restarting on the same instance and about
-    /// one in six when reopening between readings. An application that streams once per device,
-    /// which is the usual shape, does not meet the problem at all.
+    /// Neither restarting on this instance nor closing and reopening the device avoids it;
+    /// both end a reading, which is the hazard. Retuning is the way to sweep:
+    /// <see cref="CenterFrequency"/> can be changed while a reading runs, so start once,
+    /// retune between measurements, and stop once at the end.
+    /// </para>
+    /// <para>
+    /// A process that streams once and exits, which is the usual shape, does not meet this.
+    /// <see cref="ReadSamples"/> is unaffected on every platform. Observed on macOS; a fix has
+    /// been submitted to the native library's maintainers.
     /// </para>
     /// </remarks>
     /// <param name="requestedSamples">Amount of requested samples by one device read.
@@ -812,9 +817,10 @@ public sealed partial class RtlSdrManagedDevice
     /// it is thrown from here.
     /// </summary>
     /// <remarks>
-    /// Stopping leaves the device open and configured, but it is not a safe point to begin
-    /// another reading from: see the remarks on <see cref="StartReadSamplesAsync"/>. Close the
-    /// device and open it again if more samples are needed.
+    /// Stopping is the point at which the native library releases its transfer buffers, and it
+    /// does so before every canceled transfer has reported. See the remarks on
+    /// <see cref="StartReadSamplesAsync"/>: call this once, when the process is finished with
+    /// the device, rather than between readings.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the device is disposed. On a live device, stopping when no reading is running is harmless.</exception>
     /// <exception cref="RtlSdrLibraryExecutionException">Thrown when the reading cannot be stopped.</exception>

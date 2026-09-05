@@ -54,10 +54,13 @@
               other consumers.
 
             KNOWN LIMITATION:
-            - On macOS, starting a second asynchronous reading in the same process can fault
-              inside the USB layer. Close the device and open it again between readings.
-              Streaming once per device is unaffected, as is ReadSamples(), and as is
-              retuning while a reading is running.
+            - Ending an asynchronous reading can terminate the process. The native library
+              releases its transfer buffers before every canceled transfer has reported, so a
+              late completion writes into released memory. Use one reading per process and
+              retune CenterFrequency while it runs; do not stop and restart, and do not close
+              and reopen between readings, as both reach the defect. ReadSamples() and a
+              process that streams once are unaffected. Observed on macOS; a fix has been
+              submitted upstream.
 
             See CHANGELOG.md for complete details and previous releases.
         </PackageReleaseNotes>

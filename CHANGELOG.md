@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Set the heading date and the summary-table row when 0.9.0 is tagged.
 
+### Changed
+- The guidance for asynchronous reading was wrong and has been corrected across the README,
+  the package release notes and the XML documentation. It recommended closing and reopening
+  the device between readings; that does not avoid the underlying defect, because closing is
+  one of the two ways it manifests. Ending a reading is the hazard, so the supported shape is
+  one reading per process with `CenterFrequency` retuned while it runs. The defect is in the
+  native library and a fix has been submitted upstream
+
 ### Added
 - Trim and Native AOT compatibility. The library can now be used from AOT-published and
   trimmed applications without trim warnings, and trimming consumers get a smaller output.
