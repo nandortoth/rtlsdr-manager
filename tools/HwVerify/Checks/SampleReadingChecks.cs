@@ -26,17 +26,11 @@ namespace RtlSdrManager.Tools.HwVerify.Checks;
 /// Verify that samples actually flow, in every delivery mode the library offers.
 /// </summary>
 /// <remarks>
-/// This is the library's purpose and the part with the worst bug history, yet neither the test
-/// suite nor the rest of this harness touches it. The suite cannot: a device can only be
-/// constructed by opening real hardware.
-/// <para>
-/// Every group of checks gets a device that has never streamed. Starting a second reading on a
-/// device that was only stopped leaves a canceled transfer able to complete against memory the
-/// driver has already released, which crashes the process on macOS often enough to matter.
-/// Reopening is also how the device is put back afterward: handing back a freshly opened
-/// device is a stronger guarantee than undoing settings one at a time, and it cannot be left
-/// half done by a check that throws.
-/// </para>
+/// Each group takes a freshly opened device, so one group cannot leave state behind for the
+/// next. That is isolation rather than safety: ending a reading frees the native transfer
+/// buffers before every canceled transfer has reported, and closing does not wait for them,
+/// so both restarting and reopening can fault. The harness accepts that deliberately, doing a
+/// handful of cycles with real work in between rather than a tight loop.
 /// </remarks>
 internal sealed class SampleReadingChecks : IHardwareCheck
 {
@@ -80,6 +74,7 @@ internal sealed class SampleReadingChecks : IHardwareCheck
 
             RunOnFreshDevice(VerifySynchronousReading, report);
             RunOnFreshDevice(VerifyAsynchronousReading, report);
+            RunOnFreshDevice(VerifyRetuningWhileStreaming, report);
             RunOnFreshDevice(VerifyReadingAgainAfterReopening, report);
             RunOnFreshDevice(VerifyNonDefaultTransferBufferCount, report);
             RunOnFreshDevice(VerifyRawBufferMode, report);
@@ -250,17 +245,81 @@ internal sealed class SampleReadingChecks : IHardwareCheck
     }
 
     /// <summary>
+    /// Verify that the device keeps delivering after being retuned mid-reading.
+    /// </summary>
+    /// <param name="device">The device under test.</param>
+    /// <param name="report">Report collecting the outcomes.</param>
+    /// <remarks>
+    /// This is the shape the documentation recommends: start once, retune while the reading
+    /// runs, stop once. It is the only way to sweep that avoids ending a reading repeatedly,
+    /// and until now it had no hardware coverage at all — every other check changes the
+    /// frequency while the device is idle.
+    /// <para>
+    /// The tuner needs a moment to relock after a retune, and samples captured during that
+    /// window are not meaningful, so the buffer is reset and given time to refill before the
+    /// content is asserted. That is exactly the recipe the documentation gives, so this check
+    /// demonstrates it as well as verifying it.
+    /// </para>
+    /// </remarks>
+    private static void VerifyRetuningWhileStreaming(RtlSdrManagedDevice device,
+        VerificationReport report)
+    {
+        device.DropSamplesOnFullBuffer = true;
+
+        try
+        {
+            device.StartReadSamplesAsync();
+
+            report.Check("samples arrive before retuning",
+                () => Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, DeliveryDeadline),
+                $"a non-empty buffer within {DeliveryDeadline.TotalSeconds:0} s");
+
+            // Somewhere else in the tuner's range, so the retune is a real one.
+            FrequencyRange range = device.SupportedFrequencyRanges[0];
+            var retuned = Frequency.FromHz(
+                range.Minimum.Hz + ((range.Maximum.Hz - range.Minimum.Hz) / 4));
+
+            report.Check("the center frequency can be changed while a reading is running",
+                () =>
+                {
+                    device.CenterFrequency = retuned;
+                    return device.CenterFrequency.Hz == retuned.Hz;
+                },
+                $"the device tuned to {retuned.MHz:0.###} MHz without stopping the reading");
+
+            report.Check("samples still arrive after retuning",
+                () =>
+                {
+                    device.ResetDeviceBuffer();
+                    return Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, DeliveryDeadline);
+                },
+                "delivery continues across a retune; no restart is needed");
+
+            report.Check("the stream after retuning is still the counter, in order",
+                () => DeliversTheCounter(device),
+                "samples continuing the demodulator's counter, so the reading survived intact");
+        }
+        finally
+        {
+            StopQuietly(device);
+        }
+    }
+
+    /// <summary>
     /// Verify that a device which has already streamed can stream again once reopened.
     /// </summary>
     /// <param name="device">A device that was closed and opened again after a first reading.</param>
     /// <param name="report">Report collecting the outcomes.</param>
     /// <remarks>
-    /// This is the supported way to take a second reading, and it replaces a check that used to
-    /// call <c>StartReadSamplesAsync</c> again on a device that had only been stopped. Measured
-    /// over repeated runs, that pattern crashed about half the time against about a sixth for
-    /// reopening, so this is the safer of the two rather than a cure. The library's own
-    /// per-session state resets correctly either way; what is being avoided is a fault in the
-    /// layer below, not a defect here.
+    /// What this verifies is that <em>this library's</em> per-session state resets correctly:
+    /// a device that has streamed once, been closed and been opened again streams properly.
+    /// <para>
+    /// It is not an endorsement of the pattern. Reopening between readings is not a way around
+    /// the native buffer-release defect, since closing is one of the two ways that defect
+    /// shows itself; the documentation tells consumers to take one reading per process and
+    /// retune while it runs. The check exists because the reset behavior is worth verifying,
+    /// not because the shape is recommended.
+    /// </para>
     /// </remarks>
     private static void VerifyReadingAgainAfterReopening(RtlSdrManagedDevice device,
         VerificationReport report)

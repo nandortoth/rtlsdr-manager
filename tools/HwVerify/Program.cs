@@ -168,11 +168,16 @@ internal static class Program
     /// <param name="manager">Device manager owning the device.</param>
     /// <returns>The reopened device.</returns>
     /// <remarks>
-    /// Closing is the only point at which the driver waits for asynchronous work to finish
-    /// and shuts the USB event handling down. Starting a fresh reading on a device that was
-    /// merely stopped leaves a canceled transfer able to complete against memory the driver
-    /// has already released, which crashes the process on macOS. A check that needs several
-    /// readings therefore takes a new device for each one instead of restarting.
+    /// Each group of checks takes a fresh device so that one group cannot leave state behind
+    /// for the next.
+    /// <para>
+    /// This is isolation, not safety. Closing does <em>not</em> wait for asynchronous work to
+    /// settle: the native close is released as soon as the reading reports itself inactive,
+    /// which happens after the transfer buffers have already been freed. Closing and
+    /// reopening is therefore one of the two ways the buffer-release defect shows itself, not
+    /// a way around it. The harness accepts that risk deliberately, because it reopens a
+    /// handful of times with real work in between rather than in a tight loop.
+    /// </para>
     /// </remarks>
     private static RtlSdrManagedDevice ReopenDevice(RtlSdrDeviceManager manager)
     {
