@@ -87,6 +87,21 @@ Two specifics, both measured rather than assumed:
   several times normal has also been seen, so a gradual regime exists too; do not rely on
   either shape as an early warning.
 
+**A USB bus reset is not a replug, and makes things worse.** `libusb_reset_device` looks like a
+software replug and is not one: the dongle re-enumerates and streams at the full rate, but the
+RTL2832U's test-mode counter stops working and does not come back when the device is reopened.
+Measured directly — after a reset the harness scores 64 of 70 with **all six failures being
+counter checks**, and a physical replug restores it to 70. Both `HwVerify` and `HwHealth` assert
+data integrity through that counter, so resetting a device destroys the tooling's ability to
+check the data path while leaving everything else looking fine.
+
+There is no software equivalent of unplugging on macOS. A hub with per-port power switching,
+driven by `uhubctl`, is the only real substitute, and that route was considered and not taken:
+it needs the dongles on a hub whose switching genuinely works, and a hub that advertises the
+capability does not always honor it. **Replugging is the accepted method.** It is rarely
+needed in ordinary development, because sustained reading cycles are what wear a device and
+`tools/test-degrade.sh` needs several hundred to do it deliberately.
+
 **`tools/HwHealth` is how you tell the difference.** It streams for several seconds and
 measures throughput against the requested sample rate, which is the measurement that separates
 a working device from a degraded one. Run it **before and after** any hardware measurement,
