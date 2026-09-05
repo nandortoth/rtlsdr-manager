@@ -87,21 +87,91 @@ device and no `librtlsdr` installation. It runs anywhere.
 
 ### Hardware Verification
 
-Behavior that depends on a real device cannot be covered by the test suite. `tools/HwVerify`
-checks it instead: attach a dongle and run it before submitting a change that touches device
-behavior, and before a release.
+Behavior that depends on a real device cannot be covered by the test suite. Three tools in
+`tools/` cover it instead, each answering a different question:
+
+| Tool | Question it answers |
+|------|---------------------|
+| `HwVerify` | Does the library still behave correctly across every feature? |
+| `HwHealth` | Is this dongle sustaining sample delivery *right now*? |
+| `HwStress` | Does cycling the device hard produce a crash or a stall? |
+
+The `tools/test-*.sh` scripts compose them into the procedures below, and every script
+refuses to measure anything unless the device is delivering first. Attach a dongle and run
+the harness before submitting a change that touches device behavior, and before a release:
 
 ```bash
-# Open device 0 and verify device-dependent behavior
-dotnet run --project tools/HwVerify
+# The harness, between two device health checks
+tools/test-verify.sh
 
-# Also test enabling the bias tee (disconnect the antenna first)
-dotnet run --project tools/HwVerify -- --biastee-on
+# Arguments pass through, so the bias tee can be exercised too
+# (disconnect the antenna first)
+tools/test-verify.sh --biastee-on
 ```
 
 Each check prints `PASS`, `FAIL`, or `SKIP`, and the tool exits nonzero if anything failed.
 A `SKIP` names the reason, usually that the attached tuner cannot exercise that path; some
 checks need a specific tuner, so a clean run on one dongle does not always prove a fix.
+
+#### Device health comes first
+
+**A dongle that has been cycled a few hundred times stops sustaining a stream while still
+enumerating and still opening.** `HwVerify` then fails with `Error code: -3`, and it looks
+exactly like a regression you just introduced. It affects any build equally, so it is not a
+library fault, and only physically replugging clears it.
+
+This has cost real debugging time. Before trusting any hardware result, and before filing a
+bug against a change:
+
+```bash
+dotnet run --project tools/HwHealth        # HEALTHY, or the reason it is not
+```
+
+The `test-*.sh` scripts run this for you and stop if the device is not delivering, which is
+why they are the recommended way in. Two things worth knowing: readings cause the wear, not
+opening and closing, so a tool that does not stream can be run freely; and the decline can be
+abrupt rather than gradual, so a healthy reading a hundred cycles ago proves nothing now.
+
+#### Proving a crash is fixed
+
+**`HwVerify` is a regression gate, not a crash detector.** It performs few cancel cycles, so
+a fault that fires with low probability passes it comfortably: unmodified `librtlsdr` 2.0.3
+scores a clean run despite carrying a use-after-free. A green harness means "this change
+broke nothing", never "the defect is gone".
+
+Showing a crash is present, or gone, needs enough cycles to make a low-probability fault
+near-certain:
+
+```bash
+tools/test-stress.sh --pattern reopen --cycles 100 --runs 10
+```
+
+Runs are classified as completed, crashed, or stalled, and those are never collapsed
+together: a slow run and a stuck one are different findings.
+
+**Expect this to fail against a stock `librtlsdr`.** Version 2.0.3 and earlier carry the
+use-after-free described under Known Limitations in the README, so the `reopen` and `restart`
+patterns crash within a few hundred cycles on an unpatched system library. That is the defect,
+not your change. To separate the two, build a fixed library and compare, as below; a change of
+your own shows up as a difference between the two builds rather than as a crash in both.
+
+#### Comparing native library builds
+
+When a fix lives in the native library rather than here, build both and alternate them.
+Patches live in `patches/`, so this needs no checkout beyond this repository:
+
+```bash
+tools/build-native.sh --output /tmp/pristine.dylib
+tools/build-native.sh --output /tmp/fixed.dylib \
+    --patch patches/librtlsdr-async-cancel-fix.diff
+
+tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib
+```
+
+**Include a build known to be broken.** If it does not fail, the test cannot detect the
+fault and a clean result from the other build means nothing. Running all of one build and
+then all of the other does not work here: device state drifts by enough to reverse a
+conclusion, which is why `test-compare.sh` interleaves them.
 
 The harness restores what it changes. The tuner gain mode and the direct sampling mode are
 each captured on entry and put back on exit, including when a check fails, so the device is
@@ -147,7 +217,9 @@ Register it in `Program.BuildChecks`, which controls the order. Three convention
 - **Say what the behavior used to be** in the expectation string when a release changed it.
   A failure then reads as a regression rather than an unexplained mismatch.
 - **Report `SKIP` with a reason** when the attached hardware cannot exercise a path, rather
-  than passing silently. `VerificationReport.Skip` exists for that.
+  than passing silently. `VerificationReport.Skip` exists for that. Use
+  `VerificationReport.Fail` for the different case of a group that could not run at all: an
+  incomplete run has to exit nonzero, or it reads as a clean one.
 - **Restore any device state you change**, in a `finally`, and prove it by running the
   harness twice: the second run must produce the same output as the first.
 
@@ -439,7 +511,7 @@ Ensure your PR meets these requirements:
 - [ ] Code follows the project's style guidelines (`.editorconfig`)
 - [ ] Code builds without warnings: `dotnet build`
 - [ ] All tests pass: `dotnet test`
-- [ ] `tools/HwVerify` passes, if the change touches device behavior
+- [ ] `tools/test-verify.sh` passes, if the change touches device behavior
 - [ ] New code has XML documentation comments
 - [ ] README.md is updated (if needed)
 - [ ] CHANGELOG.md is updated with your changes

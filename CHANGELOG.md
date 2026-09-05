@@ -15,11 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one of the two ways it manifests. Ending a reading is the hazard, so the supported shape is
   one reading per process with `CenterFrequency` retuned while it runs. The defect is in the
   native library and a fix has been submitted upstream
+- `tools/HwVerify` now exits nonzero when a group of checks could not run, where it previously
+  printed a warning and exited zero. A run that verified almost nothing no longer reads as a
+  clean one, so a passing release check means what it says. Contributor tooling only; nothing
+  in the package changes
 
 ### Added
 - Trim and Native AOT compatibility. The library can now be used from AOT-published and
   trimmed applications without trim warnings, and trimming consumers get a smaller output.
   Nothing changes for anyone else
+- Hardware tooling for device and native-layer work, none of it part of the NuGet package.
+  `tools/HwHealth` reports whether a dongle is still sustaining sample delivery, which matters
+  because these devices stop streaming after a few hundred read cycles while still opening,
+  and that looks exactly like a code regression. `tools/HwStress` cycles a device to provoke
+  crashes and stalls that the verification harness performs too few cycles to catch.
+  `tools/build-native.sh` builds a patched `librtlsdr` to measure against, and `patches/`
+  carries the fix submitted upstream, so the defect can be reproduced and the fix verified
+  from a clean checkout. The `tools/test-*.sh` scripts compose these into the procedures
+  documented in `CONTRIBUTING.md`
 
 ## [0.8.0] - 2026-08-25
 

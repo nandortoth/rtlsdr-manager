@@ -393,7 +393,7 @@ dotnet build
 dotnet test
 
 # Verify behavior that needs a real device (attach a dongle first)
-dotnet run --project tools/HwVerify
+tools/test-verify.sh
 
 # Create NuGet packages
 dotnet pack --configuration Release
@@ -405,8 +405,13 @@ dotnet pack --configuration Release
 The test suite covers only hardware-independent components, so it needs no dongle and no
 `librtlsdr` installation. Everything that depends on a device is checked by `tools/HwVerify`
 instead, which opens the first device, prints `PASS`/`FAIL`/`SKIP` per check, and exits
-nonzero if anything failed. See the [Contributing Guide](CONTRIBUTING.md#hardware-verification)
-for what it changes on the device and how to add checks.
+nonzero if anything failed.
+
+`tools/test-verify.sh` runs the harness between two device health checks, which is the
+recommended form: a dongle that has been heavily cycled stops sustaining a stream while still
+opening, and that looks exactly like a code regression. See the
+[Contributing Guide](CONTRIBUTING.md#hardware-verification) for what the harness changes on
+the device and how to add checks.
 
 ### Build Output
 
@@ -438,8 +443,14 @@ rtlsdr-manager/
 │       └── Modes/               # Enumeration types
 ├── tests/
 │   └── RtlSdrManager.Tests/     # xUnit test suite
-├── tools/
-│   └── HwVerify/                # Hardware verification harness
+├── tools/                       # Contributor tooling; most of it needs a dongle
+│   ├── HwVerify/                # Verification harness
+│   ├── HwHealth/                # Sustained-delivery health probe
+│   ├── HwStress/                # Cycling stress tool
+│   ├── HwCommon/                # Helpers shared by the above
+│   ├── build-native.sh          # Build a native librtlsdr to test against
+│   └── test-*.sh                # Procedures composing the tools above
+├── patches/                     # Patches against the native library
 ├── samples/
 │   └── RtlSdrManager.Samples/   # Example applications
 └── docs/                        # Documentation
@@ -496,16 +507,15 @@ device.StopReadSamplesAsync();
 ```
 
 **Do not** stop and start repeatedly, and **do not** close and reopen the device between
-readings. Both reach the defect; measured on macOS, closing and reopening reached it sooner
-than restarting on the same instance.
+readings. Both reach the defect readily, so neither is a way around the other.
 
 Unaffected: `ReadSamples()`, the synchronous API, on every platform; and a process that
 streams once and exits, which is the usual shape.
 
 Observed on macOS. The native code path lacks the same protection on Linux, so it is likely
 affected there too, and Windows has a partial mitigation that may make it less exposed. A fix
-has been submitted upstream; once a corrected `librtlsdr` is released, upgrading it removes
-the problem.
+has been submitted to [steve-m/librtlsdr](https://github.com/steve-m/librtlsdr); once a
+corrected `librtlsdr` is released, upgrading it removes the problem.
 
 ## Contributing
 
@@ -521,7 +531,7 @@ RTL-SDR Manager Library for .NET is free software, released under the [GNU Gener
 - **GitHub Repository:** https://github.com/nandortoth/rtlsdr-manager
 - **Issue Tracker:** https://github.com/nandortoth/rtlsdr-manager/issues
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
-- **librtlsdr:** https://github.com/osmocom/rtl-sdr
+- **librtlsdr:** https://github.com/steve-m/librtlsdr
 
 ## Acknowledgments
 

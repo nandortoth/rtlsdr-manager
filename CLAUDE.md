@@ -13,6 +13,8 @@ dotnet build                                        # Build entire solution
 dotnet test                                         # Run all tests (hardware-independent)
 dotnet run --project samples/RtlSdrManager.Samples  # Run the demo application
 dotnet run --project tools/HwVerify                 # Verify device behavior (dongle required)
+dotnet run --project tools/HwHealth                 # Is the dongle sustaining delivery right now?
+dotnet run --project tools/HwStress                 # Cycle a device hard and report what broke
 dotnet pack --configuration Release                 # Create NuGet packages
 ```
 
@@ -42,6 +44,122 @@ on exit, and the bias tee is only written with `Disabled`, on pin 0 only, unless
 `SetBiasTeeGPIO` also switches the pin to output mode, and nothing clears that on close, so
 touching a pin the bias tee does not already use cannot be undone short of a replug.
 
+### Working with hardware
+
+Hardware results mislead in ways that unit tests do not, and every one of these rules was
+learned by getting it wrong.
+
+**The dongles degrade with use.** After a few hundred cycles of opening, reading and closing,
+they enter a state where they still enumerate and still open, and a single short read may still
+succeed, but they cannot sustain a stream. `HwVerify` then fails with `Error code: -3`. It
+affects any build equally, patched or not, so it is not a library fault; only physically
+replugging clears it. A degraded dongle looks exactly like a software regression, and has been
+mistaken for one.
+
+Two specifics, both measured rather than assumed:
+
+- **Readings cause it, not open and close churn.** 200 cycles of `HwStress --pattern openclose`,
+  which takes no readings, left a device healthy on both a patched and an unpatched library. A
+  tool that opens and closes without streaming can be run freely.
+- **The decline can be abrupt.** One device held 100% of the requested rate through 500
+  read-bearing cycles and delivered nothing at 600, with no reading in between. Cancel latency
+  several times normal has also been seen, so a gradual regime exists too; do not rely on
+  either shape as an early warning.
+
+**`tools/HwHealth` is how you tell the difference.** It streams for several seconds and
+measures throughput against the requested sample rate, which is the measurement that separates
+a working device from a degraded one. Run it **before and after** any hardware measurement,
+and treat a run whose health is unknown as a run with no result. It exits `0` healthy, `1`
+unhealthy, `2` no device, so it composes into scripts. `RTLSDR_LIBRARY_PATH` lets it probe a
+specific native build.
+
+A check that only opens a device and reads once is **not** sufficient: that is exactly what a
+degraded dongle still passes.
+
+**What that probe has and has not been shown to catch.** `tools/test-degrade.sh` drove a
+dongle from 100% throughput to delivering nothing at all, and the probe caught it: healthy
+through 500 reopen cycles, then `no samples arrived within 5 s` at 600. So the tool works
+against total failure, which is the state observed most often.
+
+The **throughput threshold itself is not proven against real hardware.** That device went from
+99.9% to zero without passing through the 50% mark, so the fraction has only ever been
+exercised by deliberately mis-setting it. A partial-degradation regime does exist — cancel
+latency several times normal, while still streaming — and no run has yet caught a device in
+it. Read an `UNHEALTHY` verdict citing throughput as a plausible reading rather than a
+calibrated one, and if a device is ever caught mid-decline, record the fraction here.
+
+**`HwVerify` is a regression gate, not a crash detector.** It performs few cancel cycles, so a
+probabilistic native fault can pass it: unmodified `librtlsdr` 2.0.3 scores 70/0/3 despite
+carrying a use-after-free. A clean harness run means "these changes broke nothing", never
+"the defect is gone". Proving a crash fixed needs enough cycles to make a low-probability fault
+near-certain, which is `tools/HwStress` and `tools/test-stress.sh`.
+
+**Comparing two builds requires interleaved same-state controls.** Run them alternately —
+A, B, A, B — in one device state, with the unpatched control in the same session. If the
+control does not fail, the test cannot detect the defect and a clean result from the other
+build means nothing. Replug before anything decisive, and say how many runs a claim rests on.
+A single run of one build establishes nothing.
+
+**A bad `RTLSDR_LIBRARY_PATH` is silent.** If the path does not exist, or is not a loadable
+library, resolution falls through to the installed copy and nothing is reported. A run you
+believe exercised a patched build may have exercised the system one, and it will look
+perfectly healthy. Both cases were confirmed: a missing file and a text file each produced a
+clean run against the system library.
+
+The `--library` flag on the `test-*.sh` scripts checks the file exists before running, so the
+scripted paths are safe; a hand-written `RTLSDR_LIBRARY_PATH=` is not. When the distinction
+matters, do not trust the variable — confirm the build behaves differently from the one you
+are comparing it against. That is the only check that cannot quietly pass.
+
+**A fixed time budget is not a stall detector.** At the degraded rate a run that is merely slow
+looks identical to one that hung. Classify a run as passed, crashed or stalled from what it
+did, not from how long it took. `HwStress` judges this from progress, resetting its budget on
+every completed cycle, so a slow run is never reported as a stuck one.
+
+### The procedures
+
+Each script composes the tools above into one of the procedures these rules describe, so the
+correct method is the easy one rather than something to remember and hand-roll.
+
+```bash
+tools/test-verify.sh                       # HwHealth, HwVerify, HwHealth: the release gate
+tools/test-stress.sh --pattern reopen      # cycle hard, bracketed by health checks
+tools/test-compare.sh --library A --library B   # alternate builds in one device state
+tools/test-degrade.sh --library PATCHED    # degrade a dongle and confirm HwHealth notices
+```
+
+All accept `--library PATH` to point the tools at a specific native build; `test-compare.sh`
+takes it more than once, one per build. All stop before measuring anything if the device is not
+delivering. `test-degrade.sh` wants a **patched** library, because the point is to wear the
+device out rather than to crash the process, and it leaves the dongle degraded: replug after
+it.
+
+**`tools/build-native.sh` produces those builds.** It clones `steve-m/librtlsdr` at a chosen
+ref, optionally applies patches, and compiles a library the tools can be pointed at, so
+"patch, rebuild, measure" is a command rather than a reconstruction:
+
+```bash
+tools/build-native.sh --output /tmp/pristine.dylib
+tools/build-native.sh --output /tmp/fixed.dylib \
+    --patch patches/librtlsdr-async-cancel-fix.diff
+tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib
+```
+
+Patches live in `patches/`, so this needs no checkout beyond this repository. See the
+README there for what each one is and how to regenerate it. `--patch` may be repeated, and
+`--source DIR` builds an existing checkout instead of cloning.
+
+To produce a patch from a working fork, use a plain diff against the fork's master; `git apply`
+does not want the mail-formatted output of `git format-patch`, and a fork clone carries no tags,
+so naming a release tag does not resolve:
+
+```bash
+git -C ../librtlsdr diff origin/master..HEAD > patches/some-fix.diff
+```
+
+Include a build known to be broken in any comparison. If it does not fail, the test cannot
+detect the fault, and a clean result from the other build means nothing.
+
 ## Tech Stack
 
 - **.NET 10** (`net10.0` only), C# with nullable reference types and `AllowUnsafeBlocks`
@@ -70,6 +188,12 @@ src/RtlSdrManager/
   Exceptions/                     Custom exception types
 tests/RtlSdrManager.Tests/        xUnit suite (hardware-independent only)
 tools/HwVerify/                   Hardware verification harness (dongle required)
+tools/HwHealth/                   Sustained-delivery health probe (dongle required)
+tools/HwStress/                   Cycling stress tool: crashes and stalls (dongle required)
+tools/HwCommon/                   Helpers shared by the hardware tools
+tools/build-native.sh             Build a native librtlsdr to test against
+tools/test-*.sh                   Procedures composing the Hw* tools
+patches/                          Patches against the native library, with provenance
 samples/RtlSdrManager.Samples/    Demo1-Demo5 example applications
 docs/                             Per-feature usage guides
 design/icon/                      Package icon sources
@@ -98,8 +222,15 @@ violating them:
    assuming what a return value means. Several are non-obvious (`-2` from
    `rtlsdr_set_freq_correction` means "value unchanged", not an error).
 
-The upstream C source is checked out at `../rtl-sdr` (tag `v2.0.3`). Consult it directly
-rather than guessing at native behavior.
+Consult the upstream C source directly rather than guessing at native behavior. Nothing in
+this repository assumes a checkout of it, so fetch one when needed:
+
+```bash
+git clone --depth 1 --branch v2.0.3 https://github.com/steve-m/librtlsdr.git
+```
+
+`tools/build-native.sh --keep` leaves its own clone behind and prints the path, which is the
+same tree at the same ref if one is already being built.
 
 ## Code and Documentation Conventions
 
@@ -158,7 +289,7 @@ The previous rule says internal comments *should* explain upstream behavior. Thi
 how. Two things never belong in a comment, at any visibility:
 
 **Source locations in the upstream C.** They are pinned to a tag, and they rot silently the
-moment `../rtl-sdr` moves.
+moment upstream moves.
 
 ❌ `// librtlsdr bounds neither (librtlsdr.c:1891-1899)`
 ✅ `// The native layer bounds neither the size nor the count`
