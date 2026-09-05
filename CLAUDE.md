@@ -45,6 +45,14 @@ it was not. Confirm with a build that actually recompiles:
 dotnet build --no-incremental      # or: dotnet clean && dotnet build
 ```
 
+**A pipeline hides the exit code you care about.** `$?` after `cmd | grep …` reports *grep*,
+not `cmd`, so a failing command reads as success. This has produced wrong results here, on
+runs whose output was filtered for readability. Capture the status before filtering:
+
+```bash
+cmd > /tmp/out 2>&1; status=$?      # then inspect /tmp/out
+```
+
 Check `Release` as well when a change could behave differently there. Note also that widening
 a type's visibility can introduce warnings that did not apply before: rules such as `CA1062`
 only fire on externally visible members, so moving a helper into its own assembly can surface
@@ -158,13 +166,40 @@ Each script composes the tools above into one of the procedures these rules desc
 correct method is the easy one rather than something to remember and hand-roll.
 
 ```bash
-tools/test-verify.sh                       # HwHealth, HwVerify, HwHealth: the release gate
+tools/test-release.sh                      # everything that must hold before tagging
+tools/test-verify.sh                       # HwHealth, HwVerify, HwHealth
 tools/test-stress.sh --pattern reopen      # cycle hard, bracketed by health checks
 tools/test-compare.sh --library A --library B   # alternate builds in one device state
 tools/test-degrade.sh --library PATCHED    # degrade a dongle and confirm HwHealth notices
+tools/test-patches.sh                      # do the vendored patches still apply and compile?
+tools/test-version.sh                      # does the version agree everywhere it is written?
 ```
 
-All accept `--library PATH` to point the tools at a specific native build; `test-compare.sh`
+**`test-release.sh` is the gate**: version consistency, warning-free Debug and Release builds,
+the unit tests, the vendored patches, and the harness between health checks. It fails on the
+first problem and reports `INCOMPLETE` rather than `PASS` if a step was skipped. Run it with no
+arguments.
+
+It **builds its own corrected `librtlsdr`** from `patches/` for the hardware step. That is
+deliberate: the harness closes and reopens the device, which reaches the native use-after-free
+on a stock library and kills the process at random, so testing against one would make a release
+pass or fail by luck rather than by whether this library is sound. The limitation is worth
+knowing — the gate verifies this library against a *corrected* native layer, not against the
+one users currently have, which is the right question for a wrapper but is not end-to-end
+validation. `--library` overrides the built one when you want to check against something else.
+
+**`test-version.sh` checks the eight places a version is written.** A bump touches four files,
+and the list in *Versioning* below tells you where; it does not tell you whether you finished.
+The easiest to miss is the release-tag link at the foot of `CHANGELOG.md`. It needs no build,
+hardware or network, so run it straight after a bump rather than waiting for the gate. The
+CHANGELOG *date* is deliberately not required, since that is set at tag time.
+
+**`test-patches.sh` guards against patch rot.** A vendored patch stops applying silently when
+upstream moves or the branch it came from is rebased, and nothing reveals it until someone
+needs a patched build. Each patch names its target ref in a leading comment that `git apply`
+ignores, and the check applies *and compiles* it. Needs network, needs no hardware.
+
+The other four accept `--library PATH` to point the tools at a specific native build; `test-compare.sh`
 takes it more than once, one per build. All stop before measuring anything if the device is not
 delivering. `test-degrade.sh` wants a **patched** library, because the point is to wear the
 device out rather than to crash the process, and it leaves the dongle degraded: replug after
@@ -368,7 +403,8 @@ before editing files.
 ## Versioning
 
 The single source of truth is `src/RtlSdrManager/RtlSdrManager.csproj`. A version bump
-touches five places — see the `version-bump` skill:
+touches five places — see the `version-bump` skill. **Run `tools/test-version.sh` after a
+bump**: it checks all of them and fails on a mismatch, which the list below cannot do.
 
 1. `src/RtlSdrManager/RtlSdrManager.csproj`: `<Version>`, `<FileVersion>` and
    `<AssemblyVersion>` (the latter two carry a `.0` fourth component, e.g. `0.8.0.0`).

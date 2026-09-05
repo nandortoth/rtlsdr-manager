@@ -1,3 +1,9 @@
+# ref: v2.0.3
+# repo: https://github.com/steve-m/librtlsdr.git
+#
+# Read by tools/test-patches.sh, which checks this still applies and compiles.
+# git apply ignores everything before the first diff header.
+
 diff --git a/src/librtlsdr.c b/src/librtlsdr.c
 index 55d2ef1..36c5361 100644
 --- a/src/librtlsdr.c

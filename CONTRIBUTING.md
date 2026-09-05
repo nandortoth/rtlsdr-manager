@@ -556,6 +556,20 @@ Include in your PR description:
 
 > **Note:** Publishing to [NuGet.org](https://www.nuget.org/packages/RtlSdrManager) is a maintainer task and requires a NuGet API key with push rights for the `RtlSdrManager` package.
 
+Before any of this, run the release gate with a dongle attached. It checks the version, both
+build configurations, the tests, the vendored patches and the hardware harness, and it refuses
+to report success if a step was skipped:
+
+```bash
+tools/test-release.sh
+```
+
+It builds its own corrected `librtlsdr` for the hardware step. Until upstream ships a fix, a
+stock native library kills the harness at random through the use-after-free described under
+Known Limitations in the README, which would make a release pass or fail by luck. So the gate
+verifies this library against a corrected native layer — the right question for a wrapper, and
+not the same as validating what a user with a stock library will experience.
+
 ### Release Steps
 
 1. **Bump the version.** It appears in more places than the one project file, and they all have to move together:
