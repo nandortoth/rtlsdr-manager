@@ -102,6 +102,24 @@ internal sealed class VerificationReport
     }
 
     /// <summary>
+    /// Record a failure that has no probe to run.
+    /// </summary>
+    /// <param name="name">What could not be established, phrased like any other check.</param>
+    /// <param name="reason">Why it could not be established.</param>
+    /// <remarks>
+    /// <see cref="Check"/> covers a check that ran and gave the wrong answer. This covers the
+    /// other case: a group that could not run at all, usually because the device stopped being
+    /// openable partway through a run. That has to count as a failure rather than a note,
+    /// because the alternative is an incomplete run that exits zero and reads as a clean one.
+    /// </remarks>
+    public void Fail(string name, string reason)
+    {
+        Console.WriteLine($"  FAIL  {name}");
+        Console.WriteLine($"        {reason}");
+        Failed++;
+    }
+
+    /// <summary>
     /// Print the totals line that closes a run.
     /// </summary>
     public void PrintSummary() =>

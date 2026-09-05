@@ -20,6 +20,8 @@ using System.Threading;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Modes;
 
+using RtlSdrManager.Tools.Common;
+
 namespace RtlSdrManager.Tools.HwVerify.Checks;
 
 /// <summary>
@@ -86,12 +88,23 @@ internal sealed class SampleReadingChecks : IHardwareCheck
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  WARN  the sample reading checks could not complete: {ex.Message}");
+            report.Fail("the sample reading checks ran to completion",
+                $"the group stopped early: {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
             // Hands the next check a device in its opened state, whatever happened above.
-            _reopenDevice();
+            // Guarded, because an exception here escapes the catch above rather than being
+            // caught by it, which would end the run with no report at all.
+            try
+            {
+                _reopenDevice();
+            }
+            catch (Exception ex)
+            {
+                report.Fail("the device could be reopened after the sample reading checks",
+                    $"{ex.GetType().Name}: {ex.Message}");
+            }
         }
     }
 

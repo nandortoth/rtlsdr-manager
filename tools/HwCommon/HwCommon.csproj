@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <AssemblyName>HwCommon</AssemblyName>
+        <RootNamespace>RtlSdrManager.Tools.Common</RootNamespace>
+
+        <!-- Contributor tool support library: never packed, never published to NuGet. -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../src/RtlSdrManager/RtlSdrManager.csproj" />
+    </ItemGroup>
+</Project>

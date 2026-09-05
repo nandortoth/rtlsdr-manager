@@ -17,7 +17,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RtlSdrManager.Tools.HwVerify;
+namespace RtlSdrManager.Tools.Common;
 
 /// <summary>
 /// Recognizes the counter a device emits while its test mode is on.
@@ -28,7 +28,7 @@ namespace RtlSdrManager.Tools.HwVerify;
 /// arrived in the right order instead of merely that some arrived, and it removes any
 /// dependence on an antenna or on what is on the air.
 /// </remarks>
-internal static class TestModeCounter
+public static class TestModeCounter
 {
     /// <summary>
     /// How many samples to inspect, which is one USB bulk packet's worth.

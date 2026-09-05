@@ -106,7 +106,21 @@ internal static class Program
 
         var report = new VerificationReport();
 
-        manager.OpenManagedDevice(0, DeviceName);
+        try
+        {
+            manager.OpenManagedDevice(0, DeviceName);
+        }
+        catch (Exception ex)
+        {
+            // Reported rather than thrown: a device that is present but cannot be opened is
+            // an ordinary outcome, most often because another process still holds it, and it
+            // deserves a legible message instead of a stack trace.
+            Console.WriteLine($"The device under test could not be opened: {ex.Message}");
+            Console.WriteLine("Check that no other process is using it, then run again.");
+
+            return ExitFailure;
+        }
+
         try
         {
             RtlSdrManagedDevice device = manager[DeviceName];
@@ -122,15 +136,33 @@ internal static class Program
             {
                 Console.WriteLine(check.Title);
 
-                // Resolved per check rather than captured once: a check is allowed to close
-                // and reopen the device, which invalidates any reference taken before it ran.
-                check.Run(manager[DeviceName], report);
+                try
+                {
+                    // Resolved per check rather than captured once: a check is allowed to
+                    // close and reopen the device, which invalidates any reference taken
+                    // before it ran. The lookup itself throws when no device is open, so it
+                    // belongs inside the guard.
+                    check.Run(manager[DeviceName], report);
+                }
+                catch (Exception ex)
+                {
+                    // Once the device cannot be resolved or opened, every remaining group
+                    // fails the same way; reporting that once and stopping is more useful
+                    // than repeating it per group.
+                    report.Fail($"the {check.Title.ToLowerInvariant()} checks could run",
+                        $"{ex.GetType().Name}: {ex.Message}; remaining checks skipped");
+                    break;
+                }
+
                 Console.WriteLine();
             }
         }
         finally
         {
-            manager.CloseManagedDevice(DeviceName);
+            // Closes whatever is open rather than a named device: after a failed reopen there
+            // may be nothing to close, and throwing here would replace the exception that
+            // actually ended the run.
+            manager.CloseAllManagedDevice();
         }
 
         report.PrintSummary();
@@ -178,10 +210,16 @@ internal static class Program
     /// a way around it. The harness accepts that risk deliberately, because it reopens a
     /// handful of times with real work in between rather than in a tight loop.
     /// </para>
+    /// <para>
+    /// The close is deliberately the tolerant one. A device that failed to open on an earlier
+    /// reopen leaves nothing to close, and throwing here would land on top of whatever caused
+    /// that failure and hide it. Opening still throws, because a device that cannot be opened
+    /// is a real result the run should report.
+    /// </para>
     /// </remarks>
     private static RtlSdrManagedDevice ReopenDevice(RtlSdrDeviceManager manager)
     {
-        manager.CloseManagedDevice(DeviceName);
+        manager.CloseAllManagedDevice();
         manager.OpenManagedDevice(0, DeviceName);
 
         return manager[DeviceName];

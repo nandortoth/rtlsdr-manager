@@ -19,7 +19,7 @@ using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
-namespace RtlSdrManager.Tools.HwVerify;
+namespace RtlSdrManager.Tools.Common;
 
 /// <summary>
 /// Bounds how long the harness will wait on a device.
@@ -29,7 +29,7 @@ namespace RtlSdrManager.Tools.HwVerify;
 /// no timeout. Nothing here may wait indefinitely: a check that overruns has to be reported as
 /// a failure so the rest of the run still happens.
 /// </remarks>
-internal static class Deadline
+public static class Deadline
 {
     /// <summary>How often to re-test a condition while waiting for it.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
