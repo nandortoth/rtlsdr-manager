@@ -96,8 +96,15 @@ finally
 ## Notes
 
 - The `DropSamplesOnFullBuffer` setting prevents buffer overflow by dropping old samples when the buffer is full.
-- `TransferBufferCount` controls how many buffers the device fills in rotation, and is the main lever if samples are being dropped or latency matters. Raising it absorbs longer pauses in your handler; lowering it cuts worst-case delay. The default suits most applications, and it must be set before `StartReadSamplesAsync()`. Note that this is separate from `MaxAsyncBufferSize`, which sizes the queue your code reads from rather than the device's own buffers.
+- `TransferBufferCount` controls how many buffers the device fills in rotation, and is the main lever if samples are being dropped or latency matters. Raising it absorbs longer pauses in the code consuming samples; lowering it cuts worst-case delay. The default suits most applications, and it must be set before `StartReadSamplesAsync()`. Note that this is separate from `MaxAsyncBufferSize`, which sizes the queue your code reads from rather than the device's own buffers.
 - Async reading runs in a background thread, so always stop it with `StopReadSamplesAsync()` and release the device with `CloseManagedDevice(...)` (or `Dispose()`) when finished.
+- **Take one reading per process.** Ending an asynchronous reading can terminate the process:
+  the native library releases its transfer buffers before every canceled transfer has finished
+  reporting, and a late one then writes into released memory. Start once, retune
+  `CenterFrequency` while the reading runs, and stop once at the end. Do not stop and restart,
+  and do not close and reopen the device between readings; both reach the defect. `ReadSamples()`
+  is unaffected. See [Known Limitations](../README.md#known-limitations) for the detail and a
+  worked retuning example.
 - `StopReadSamplesAsync()` rethrows any error that stopped the reading; wrap it so cleanup still runs.
 - A sample rate of 2 MHz provides good coverage for most applications.
 - This example uses the default per-sample delivery mode (`IQData` via `GetSamplesFromAsyncBuffer`).

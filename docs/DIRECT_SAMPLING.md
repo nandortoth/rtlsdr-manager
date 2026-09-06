@@ -52,6 +52,11 @@ Console.WriteLine("Using Q-ADC direct sampling");
 
 ### Switching Between Modes
 
+Every change below is made **while the reading is still running**. That is deliberate, not
+incidental: ending an asynchronous reading can terminate the process, so a sweep that stops and
+restarts around each mode change reaches a defect that a single continuous reading never does.
+See [Known Limitations](../README.md#known-limitations).
+
 ```csharp
 // Disable direct sampling to return to normal tuner mode
 manager["hf-receiver"].DirectSamplingMode = DirectSamplingModes.Disabled;
@@ -126,6 +131,7 @@ manager.CloseManagedDevice("hf-receiver");
 - Direct sampling bypasses the tuner chip entirely.
 - **Enable direct sampling before setting the center frequency.** Switching mode re-applies the current frequency through the path being entered, and a VHF or UHF frequency is meaningless to the ADC. Turning direct sampling on therefore resets the center frequency to 0 Hz whenever the previous one is out of the ADC's reach.
 - Turning direct sampling back off re-applies the current frequency to the tuner, which fails if it is an HF frequency only the ADC could reach. The mode still changes; set a frequency the tuner supports afterwards.
+- **Change mode and frequency while the reading runs; do not stop and restart around them.** Ending an asynchronous reading can terminate the process, because the native library releases its transfer buffers before every canceled transfer has finished reporting. One reading per process, retuned as needed, avoids it entirely. `ReadSamples()` is unaffected. See [Known Limitations](../README.md#known-limitations).
 - I-ADC and Q-ADC inputs may have different performance characteristics depending on the device.
 - Sample rate and gain settings still apply.
 - Not all RTL-SDR devices support direct sampling equally well.
