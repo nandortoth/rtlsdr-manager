@@ -64,8 +64,9 @@ while [[ $# -gt 0 ]]; do
             echo "verifies this library against a corrected native layer, not against the one"
             echo "users currently have."
             echo
-            echo "Exits nonzero on the first failure. Skipping a step means the result is no"
-            echo "longer a release gate; the summary says which steps ran."
+            echo "Exit codes: 0 everything passed, 1 something failed, 3 a step was skipped"
+            echo "so the run is not a release gate. Only 0 means releasable, which is what"
+            echo "makes 'test-release.sh && git tag ...' safe to write."
             echo
             echo "--library overrides the built library, for checking against something else."
             exit 0
@@ -204,9 +205,22 @@ if [[ $SKIP_HARDWARE -eq 1 || $SKIP_PATCHES -eq 1 ]]; then
     echo "  INCOMPLETE  everything that ran passed, but a step was skipped."
     echo "              Steps that ran: ${RAN[*]}"
     echo "              Run without --skip-* before tagging."
-    exit 0
+
+    # Exits nonzero on purpose. Everything that ran passed, but the run is not a release
+    # gate, and "tools/test-release.sh --skip-hardware && git tag" must not tag a build
+    # whose hardware was never verified. A distinct code lets a caller tell an incomplete
+    # run from a failing one.
+    exit 3
 fi
 
 echo "  PASS  version, build, tests, patches and hardware all clean"
-echo "        Remaining before tagging: set the CHANGELOG date and its summary row."
+
+# test-version.sh reports an undated section as a note rather than a failure, because the
+# date is set at tag time. Repeat it here only while it is still true: a reminder that fires
+# after it has been acted on teaches people to skim past this line.
+if grep -q "still UNRELEASED" "$WORKDIR/version.log"; then
+    echo "        Remaining before tagging: set the CHANGELOG date and its summary row."
+else
+    echo "        The CHANGELOG is dated; this is ready to tag."
+fi
 exit 0

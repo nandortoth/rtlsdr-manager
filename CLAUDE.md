@@ -177,8 +177,9 @@ tools/test-version.sh                      # does the version agree everywhere i
 
 **`test-release.sh` is the gate**: version consistency, warning-free Debug and Release builds,
 the unit tests, the vendored patches, and the harness between health checks. It fails on the
-first problem and reports `INCOMPLETE` rather than `PASS` if a step was skipped. Run it with no
-arguments.
+first problem, and a run that skipped a step reports `INCOMPLETE` and exits 3 rather than 0, so
+`test-release.sh && git tag …` cannot tag a build whose hardware was never verified. Run it with
+no arguments.
 
 It **builds its own corrected `librtlsdr`** from `patches/` for the hardware step. That is
 deliberate: the harness closes and reopens the device, which reaches the native use-after-free
