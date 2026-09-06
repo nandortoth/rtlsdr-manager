@@ -10,9 +10,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.9.0</Version>
-        <FileVersion>0.9.0.0</FileVersion>
-        <AssemblyVersion>0.9.0.0</AssemblyVersion>
+        <Version>0.8.1</Version>
+        <FileVersion>0.8.1.0</FileVersion>
+        <AssemblyVersion>0.8.1.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -46,7 +46,13 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.9.0 (UNRELEASED - set the date when tagging):
+            v0.8.1 (UNRELEASED - set the date when tagging):
+
+            CHANGED:
+            - The guidance for asynchronous reading was wrong and is corrected. It
+              recommended closing and reopening the device between readings; that does not
+              avoid the defect below, because closing is one of the two ways it manifests.
+              Use one reading per process, retuning CenterFrequency while it runs.
 
             ADDED:
             - Trim and Native AOT compatibility. The library can now be used from
