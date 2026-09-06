@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using RtlSdrManager.Exceptions;
@@ -28,6 +29,8 @@ namespace RtlSdrManager.Samples;
 /// In this demo:
 ///   - Samples will be received asynchronously.
 ///   - Samples will be handled by SamplesAvailable event.
+///   - The handler hands work off instead of doing it, because it runs on the driver's
+///     callback thread; see the comment on the subscription below.
 /// </summary>
 public static class Demo1
 {
@@ -66,23 +69,37 @@ public static class Demo1
         // Start asynchronous sample reading.
         manager["my-rtl-sdr"].StartReadSamplesAsync(8 * 16384);
 
-        // Subscribe on the event with the function.
+        // Batches taken out of the device buffer, waiting to be printed by this thread.
+        var pending = new ConcurrentQueue<List<IQData>>();
+
+        // The event is raised on the driver's callback thread, so the handler only drains the
+        // buffer and hands the batch on. Anything slower here - console output above all -
+        // stalls the transfer pipeline and costs samples.
         manager["my-rtl-sdr"].SamplesAvailable += (_, args) =>
         {
-            // Read the samples.
-            List<IQData> samples = manager["my-rtl-sdr"].GetSamplesFromAsyncBuffer(args.SampleCount);
+            pending.Enqueue(manager["my-rtl-sdr"].GetSamplesFromAsyncBuffer(args.SampleCount));
+        };
+
+        // Receive for five seconds, printing whatever the handler has handed over.
+        var until = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < until)
+        {
+            if (!pending.TryDequeue(out List<IQData> samples))
+            {
+                Thread.Sleep(50);
+                continue;
+            }
+
             Console.WriteLine($"{samples.Count} samples handled, and removed from the buffer.");
 
-            // Dump the first five samples.
-            Console.WriteLine("Samples (first five):");
-            for (int i = 0; i < 5; i++)
+            // A batch can be shorter than five samples, so take whichever is smaller.
+            int show = Math.Min(5, samples.Count);
+            Console.WriteLine($"Samples (first {show}):");
+            for (int i = 0; i < show; i++)
             {
                 Console.WriteLine($"  {i + 1}: {samples[i]}");
             }
-        };
-
-        // Sleep the thread for 5 second before stop the samples reading.
-        Thread.Sleep(5000);
+        }
 
         // Stop the reading of the samples. Since v0.7.0 this rethrows an error that stopped
         // the reading (e.g. a device failure); always close the device regardless.
@@ -93,6 +110,10 @@ public static class Demo1
         catch (RtlSdrManagedDeviceException e)
         {
             Console.WriteLine($"Asynchronous reading stopped with an error: {e.InnerException?.Message}");
+
+            // The same error stays readable here until the next StartReadSamplesAsync, which
+            // is useful when the reading stopped on its own rather than on request.
+            Console.WriteLine($"AsyncReadException: {manager["my-rtl-sdr"].AsyncReadException?.Message}");
         }
         finally
         {

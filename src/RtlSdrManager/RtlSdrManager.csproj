@@ -46,18 +46,26 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.8.1 (UNRELEASED - set the date when tagging):
+            v0.8.1 (2026-09-06):
 
             CHANGED:
             - The guidance for asynchronous reading was wrong and is corrected. It
               recommended closing and reopening the device between readings; that does not
               avoid the defect below, because closing is one of the two ways it manifests.
               Use one reading per process, retuning CenterFrequency while it runs.
+            - The event-based example processed samples inside the SamplesAvailable handler.
+              That handler runs on the driver's callback thread, where slow work stalls the
+              transfer pipeline and costs samples, so the example now hands the batch off and
+              processes it elsewhere.
 
             ADDED:
             - Trim and Native AOT compatibility. The library can now be used from
               AOT-published and trimmed applications without trim warnings. No effect on
               other consumers.
+            - Worked examples for the APIs added in 0.8.0, which shipped without any. The
+              samples now cover opening a device by serial number, the reachable frequency
+              range, and the transfer buffer count, alongside the dropped-sample counter and
+              the captured asynchronous error.
 
             KNOWN LIMITATION:
             - Ending an asynchronous reading can terminate the process. The native library

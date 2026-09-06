@@ -144,11 +144,15 @@ device.DropSamplesOnFullBuffer = true;
 // Start async reading in background
 device.StartReadSamplesAsync();
 
-// Option 1: Event-based (recommended for real-time processing)
+// Option 1: Event-based. The handler runs on the driver's callback thread, so it must
+// hand work off rather than do it: anything slow here stalls the transfer pipeline and
+// costs samples.
+var pending = new ConcurrentQueue<List<IQData>>();
+
 device.SamplesAvailable += (sender, args) =>
 {
-    var samples = device.GetSamplesFromAsyncBuffer(args.SampleCount);
-    // Process samples in real-time
+    // Drain and hand over. Process on your own thread, not this one.
+    pending.Enqueue(device.GetSamplesFromAsyncBuffer(args.SampleCount));
 };
 
 // Option 2: Manual polling (for custom processing logic)
@@ -366,11 +370,11 @@ Detailed guides for specific use cases:
 
 The [`samples/`](samples/) directory contains complete working examples:
 
-- **Demo1** — Event-based async sample reading
-- **Demo2** — Manual polling from async buffer
+- **Demo1** — Event-based async sample reading, handing work off the callback thread
+- **Demo2** — Manual polling from the async buffer, with transfer buffer count and drop count
 - **Demo3** — Synchronous sample reading
-- **Demo4** — Device information and configuration
-- **Demo5** — Raw buffer mode for zero-copy sample processing
+- **Demo4** — Device discovery and configuration: re-enumeration, opening by serial, reachable range
+- **Demo5** — Raw buffer mode for zero-copy sample processing, with pooled-buffer hand-off
 
 ## Building from Source
 

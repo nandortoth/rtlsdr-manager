@@ -55,15 +55,18 @@ public static class Program
             Console.WriteLine(" [1] DEMO 1");
             Console.WriteLine("     Samples will be read asynchronously.");
             Console.WriteLine("     Samples will be handled by SamplesAvailable event.");
+            Console.WriteLine("     The handler hands off; printing happens on this thread.");
             Console.WriteLine(" [2] DEMO 2");
             Console.WriteLine("     Samples will be read asynchronously.");
             Console.WriteLine("     Samples will be read directly from the buffer.");
+            Console.WriteLine("     Reports transfer buffers in use and samples dropped.");
             Console.WriteLine(" [3] DEMO 3");
             Console.WriteLine("     Samples will be read synchronously.");
             Console.WriteLine("     Simply print the first 5 samples.");
             Console.WriteLine(" [4] DEMO 4");
             Console.WriteLine("     Show RTL-SDR device(s) on the system.");
             Console.WriteLine("     Show the detailed parameters of the opened device(s).");
+            Console.WriteLine("     Open by serial and report the reachable frequency range.");
             Console.WriteLine(" [5] DEMO 5");
             Console.WriteLine("     Samples will be read asynchronously using raw buffer mode.");
             Console.WriteLine("     Zero-copy access to raw I/Q bytes with pooled buffers.");

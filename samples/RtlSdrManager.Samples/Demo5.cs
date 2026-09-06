@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses.
 
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using RtlSdrManager.Exceptions;
 using RtlSdrManager.Modes;
@@ -70,14 +71,32 @@ public static class Demo5
         // Start asynchronous sample reading.
         manager["my-rtl-sdr"].StartReadSamplesAsync(8 * 16384);
 
-        // Subscribe on the event with the function.
+        // Buffers taken from the channel, waiting for this thread to read and return them.
+        var pending = new ConcurrentQueue<RawSampleBuffer>();
+
+        // The event is raised on the driver's callback thread, so the handler only takes the
+        // buffer and hands it on. Anything slower here - console output above all - stalls the
+        // transfer pipeline and costs samples.
+        //
+        // Ownership travels with the buffer: whoever dequeues it is responsible for calling
+        // Return() exactly once, which is why the loop below does it in a finally.
         manager["my-rtl-sdr"].SamplesAvailable += (_, _) =>
         {
-            // Get a raw buffer from the channel.
             RawSampleBuffer buffer = manager["my-rtl-sdr"].GetRawSamplesFromAsyncBuffer();
-            if (buffer == null)
+            if (buffer != null)
             {
-                return;
+                pending.Enqueue(buffer);
+            }
+        };
+
+        // Receive for five seconds, printing whatever the handler has handed over.
+        var until = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < until)
+        {
+            if (!pending.TryDequeue(out RawSampleBuffer buffer))
+            {
+                Thread.Sleep(50);
+                continue;
             }
 
             try
@@ -88,8 +107,8 @@ public static class Demo5
                 Console.WriteLine($"{buffer.SampleCount} samples received ({buffer.ByteLength} bytes).");
 
                 // Dump the first five I/Q sample pairs.
-                Console.WriteLine("Samples (first five):");
                 int count = Math.Min(5, buffer.SampleCount);
+                Console.WriteLine($"Samples (first {count}):");
                 for (int i = 0; i < count; i++)
                 {
                     byte iSample = raw[i * 2];
@@ -99,13 +118,17 @@ public static class Demo5
             }
             finally
             {
-                // Return the pooled buffer — must be called exactly once.
+                // Return the pooled buffer - must be called exactly once.
                 buffer.Return();
             }
-        };
+        }
 
-        // Sleep the thread for 5 seconds before stopping the sample reading.
-        Thread.Sleep(5000);
+        // Anything the handler queued after the loop ended still owns a pooled buffer, so
+        // hand every one of them back rather than leaking it.
+        while (pending.TryDequeue(out RawSampleBuffer leftover))
+        {
+            leftover.Return();
+        }
 
         // Stop the reading of the samples. Since v0.7.0 this rethrows an error that stopped
         // the reading (e.g. a device failure); always close the device regardless.

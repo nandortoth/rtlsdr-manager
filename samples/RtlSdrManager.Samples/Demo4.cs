@@ -27,6 +27,7 @@ namespace RtlSdrManager.Samples;
 /// In this demo:
 ///   - Show RTL-SDR device(s) on the system.
 ///   - Show the detailed parameter of the opened device(s).
+///   - Re-enumerate with RefreshDevices, open by serial, and report the reachable range.
 /// </summary>
 public static class Demo4
 {
@@ -53,6 +54,41 @@ public static class Demo4
         Console.WriteLine("DETAILS - BEFORE MANAGING ANY OF THEM");
         Console.WriteLine($"  Number of device(s) on the system: {manager.CountDevices}\n" +
                           $"  Managed device(s) on the system:   {manager.CountManagedDevices}\n");
+
+        // Indices are positional and shift when devices are plugged or unplugged, so opening
+        // by serial is the way to reach the same physical device again after a replug. It
+        // throws rather than guessing if the serial is unknown, or if more than one device
+        // carries it, which is common with unmodified factory values.
+        if (manager.CountDevices > 0)
+        {
+            Console.WriteLine("OPENING BY SERIAL");
+
+            foreach (DeviceInfo info in manager.Devices.Values)
+            {
+                Console.WriteLine($"  Serial '{info.Serial}' (enumerated at index {info.Index}):");
+
+                try
+                {
+                    manager.OpenManagedDeviceBySerial(info.Serial, "by-serial");
+
+                    // Reporting the index the lookup resolved to is the point: it should be
+                    // the one enumeration reported, and it is what would shift after a replug.
+                    Console.WriteLine($"    opened at index {manager["by-serial"].DeviceInfo.Index}, " +
+                                      $"tuner: {manager["by-serial"].TunerType}");
+
+                    manager.CloseManagedDevice("by-serial");
+                }
+                catch (RtlSdrDeviceException e)
+                {
+                    // Serials are not unique. Cheap dongles ship with the same factory value
+                    // until someone reflashes them, and the library throws rather than
+                    // picking one arbitrarily.
+                    Console.WriteLine($"    could not be opened by serial: {e.Message}");
+                }
+            }
+
+            Console.WriteLine();
+        }
 
         // Open all available devices and set some parameters.
         foreach (DeviceInfo device in manager.Devices.Values)
@@ -121,6 +157,22 @@ public static class Demo4
                 }
 
                 Console.Write($"{device.SupportedTunerGains.ElementAt(i),4:F1} dB  ");
+            }
+
+            // What CenterFrequency will currently accept. This is the tuner's range normally
+            // and the ADC's while direct sampling is on, so it answers the question rather
+            // than describing the hardware in the abstract.
+            Console.Write($"\n    {"Reachable frequency",-22}: ");
+
+            for (int i = 0; i < device.SupportedFrequencyRanges.Count; i++)
+            {
+                if (i != 0)
+                {
+                    Console.Write($"\n    {" ",-22}: ");
+                }
+
+                FrequencyRange range = device.SupportedFrequencyRanges[i];
+                Console.Write($"{range.Minimum.MHz:0.###} - {range.Maximum.MHz:0.###} MHz");
             }
 
             Console.WriteLine("\n");

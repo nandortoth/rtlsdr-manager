@@ -4,9 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.1] - UNRELEASED
-
-> Set the heading date and the summary-table row when 0.8.1 is tagged.
+## [0.8.1] - 2026-09-06
 
 ### Changed
 - The guidance for asynchronous reading was wrong and has been corrected across the README,
@@ -15,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one of the two ways it manifests. Ending a reading is the hazard, so the supported shape is
   one reading per process with `CenterFrequency` retuned while it runs. The defect is in the
   native library and a fix has been submitted upstream
+- The asynchronous samples now hand work off the callback thread instead of doing it there.
+  `Demo1` and `Demo5` printed to the console inside the `SamplesAvailable` handler, which runs
+  on the driver's callback thread where slow work stalls the transfer pipeline; both now queue
+  the batch and print from their own loop, and `Demo5` shows pooled buffers being returned by
+  whoever dequeues them. The README's event-based snippet is corrected the same way. Measured
+  at 2 MSPS neither shape dropped samples, so this is about the example being right rather than
+  a fix to observed behavior
+- `Demo1` no longer indexes five samples without checking that five arrived, which could throw
+  from inside a native callback
 - `tools/HwVerify` now exits nonzero when a group of checks could not run, where it previously
   printed a warning and exited zero. A run that verified almost nothing no longer reads as a
   clean one, so a passing release check means what it says. Contributor tooling only; nothing
@@ -24,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Trim and Native AOT compatibility. The library can now be used from AOT-published and
   trimmed applications without trim warnings, and trimming consumers get a smaller output.
   Nothing changes for anyone else
+- Worked examples for APIs that had none. `Demo4` re-enumerates with `RefreshDevices()`, opens
+  every attached device by serial number and reports the index each one resolved to, and lists
+  each device's reachable frequency range alongside its other parameters; `Demo2` sets
+  `TransferBufferCount` and reports `DroppedSamplesCount` so falling behind is visible; `Demo1`
+  reads `AsyncReadException` on the error path. Every public API added in 0.8.0 now appears in
+  a sample
 - Hardware tooling for device and native-layer work, none of it part of the NuGet package.
   `tools/HwHealth` reports whether a dongle is still sustaining sample delivery, which matters
   because these devices stop streaming after a few hundred read cycles while still opening,
@@ -492,7 +505,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
-| **0.8.1** | UNRELEASED | Corrected async guidance, Trim and Native AOT compatibility _(update when tagging)_ |
+| **0.8.1** | 2026-09-06 | Corrected async reading guidance, Trim and Native AOT support, worked examples for the 0.8.0 APIs (non-breaking) |
 | **0.8.0** | 2026-08-25 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
 | **0.7.0** | 2026-07-21 | Async crash/leak fixes, net10.0-only, hardened stop/dispose, tests, XML docs |

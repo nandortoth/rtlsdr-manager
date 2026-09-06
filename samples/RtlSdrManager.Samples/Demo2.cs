@@ -28,6 +28,7 @@ namespace RtlSdrManager.Samples;
 /// In this demo:
 ///   - Samples will be received asynchronously.
 ///   - Samples will be received directly from the buffer.
+///   - TransferBufferCount and DroppedSamplesCount show whether the consumer keeps pace.
 /// </summary>
 public static class Demo2
 {
@@ -61,6 +62,14 @@ public static class Demo2
         manager["my-rtl-sdr"].AGCMode = AGCModes.Enabled;
         manager["my-rtl-sdr"].MaxAsyncBufferSize = 512 * 1024;
         manager["my-rtl-sdr"].DropSamplesOnFullBuffer = true;
+
+        // How many buffers the device fills in rotation. Raising it absorbs longer pauses in
+        // the consumer; lowering it cuts worst-case latency. It must be set before the reading
+        // starts, and it is distinct from MaxAsyncBufferSize, which sizes the queue this demo
+        // dequeues from rather than the device's own buffers.
+        manager["my-rtl-sdr"].TransferBufferCount = 20;
+        Console.WriteLine($"Transfer buffers in rotation: {manager["my-rtl-sdr"].TransferBufferCount}");
+
         manager["my-rtl-sdr"].ResetDeviceBuffer();
 
         // Use cancellation token.
@@ -113,7 +122,13 @@ public static class Demo2
             while (!token.IsCancellationRequested)
             {
                 int bufferSize = manager["my-rtl-sdr"].AsyncBuffer.Count;
-                Console.WriteLine($"Still unhandled samples: {bufferSize}");
+
+                // Samples the driver had to discard because the buffer above was full. With
+                // DropSamplesOnFullBuffer enabled this is how falling behind shows up; a
+                // rising count means the consumer is not keeping pace with the device.
+                uint dropped = manager["my-rtl-sdr"].DroppedSamplesCount;
+
+                Console.WriteLine($"Still unhandled samples: {bufferSize}, dropped so far: {dropped}");
                 Thread.Sleep(250);
             }
         }, token);
