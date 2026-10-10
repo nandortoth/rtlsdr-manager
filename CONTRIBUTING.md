@@ -128,9 +128,11 @@ dotnet run --project tools/HwHealth        # HEALTHY, or the reason it is not
 ```
 
 The `test-*.sh` scripts run this for you and stop if the device is not delivering, which is
-why they are the recommended way in. Two things worth knowing: readings cause the wear, not
-opening and closing, so a tool that does not stream can be run freely; and the decline can be
-abrupt rather than gradual, so a healthy reading a hundred cycles ago proves nothing now.
+why they are the recommended way in. Two things worth knowing: what wears a dongle is opening
+and reading in the same cycle, so a tool that only opens, or only restarts a reading on a device
+it keeps open, can be run freely, while a few hundred open-read-close cycles can finish one off;
+and the decline can be abrupt rather than gradual, so a healthy reading a hundred cycles ago
+proves nothing now.
 
 #### Proving a crash is fixed
 
@@ -143,16 +145,23 @@ Showing a crash is present, or gone, needs enough cycles to make a low-probabili
 near-certain:
 
 ```bash
-tools/test-stress.sh --pattern reopen --cycles 100 --runs 10
+tools/test-stress.sh --pattern restart --cycles 200 --runs 10
 ```
 
-Runs are classified as completed, crashed, or stalled, and those are never collapsed
+Runs are classified as completed, crashed, stalled, or starved, and those are never collapsed
 together: a slow run and a stuck one are different findings.
 
+A run is only completed when every cycle receives samples, because a cycle without them stops
+nothing in flight and tests nothing. Three empty cycles in a row end the run as
+starved, which is not a verdict on your change: either the device stopped delivering or the
+build stopped streaming, and a health check through a library known to stream tells which.
+
 **Expect this to fail against a stock `librtlsdr`.** Version 2.0.3 and earlier carry the
-use-after-free described under Known Limitations in the README, so the `reopen` and `restart`
-patterns crash within a few hundred cycles on an unpatched system library. That is the defect,
-not your change. To separate the two, build a fixed library and compare, as below; a change of
+use-after-free described under Known Limitations in the README, so the `restart` pattern
+crashes an unpatched system library, though at a rate that varies widely between sessions:
+within a handful of cycles in one, a few times in thousands in another. The `reopen` pattern
+crashes it far less readily and wears the dongle out within a few hundred cycles, so use
+`restart` to look for this defect. A crash is the defect, not your change. To separate the two, build a fixed library and compare, as below; a change of
 your own shows up as a difference between the two builds rather than as a crash in both.
 
 #### Comparing native library builds
@@ -165,13 +174,19 @@ tools/build-native.sh --output /tmp/pristine.dylib
 tools/build-native.sh --output /tmp/fixed.dylib \
     --patch patches/librtlsdr-async-cancel-fix.diff
 
-tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib
+tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib \
+    --health-library /tmp/fixed.dylib
 ```
 
 **Include a build known to be broken.** If it does not fail, the test cannot detect the
 fault and a clean result from the other build means nothing. Running all of one build and
 then all of the other does not work here: device state drifts by enough to reverse a
 conclusion, which is why `test-compare.sh` interleaves them.
+
+`--health-library` is required, and every health check reads through it, so give it a build
+that streams and stops cleanly. A probe reading through the broken build can die on stop and
+report nothing. The script stops at the first unhealthy check, because every run after it
+would measure a device that is not delivering; replug and run again.
 
 The harness restores what it changes. The tuner gain mode and the direct sampling mode are
 each captured on entry and put back on exit, including when a check fails, so the device is

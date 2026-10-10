@@ -87,9 +87,13 @@ mistaken for one.
 
 Two specifics, both measured rather than assumed:
 
-- **Readings cause it, not open and close churn.** 200 cycles of `HwStress --pattern openclose`,
-  which takes no readings, left a device healthy on both a patched and an unpatched library. A
-  tool that opens and closes without streaming can be run freely.
+- **Opening and reading in the same cycle causes it; neither alone does.** 200 cycles of
+  `HwStress --pattern openclose`, which takes no readings, left a device healthy on both a
+  patched and an unpatched library. Over 21,000 cycles of `--pattern restart`, which reads on
+  every cycle but opens only once, left a device at the full rate after a single replug. The
+  `reopen` pattern, which opens, reads and closes on every cycle, left the same device
+  delivering nothing after 300 to 400 cycles, twice. So a tool that opens without streaming,
+  or streams without reopening, can be run freely; budget open-read-close cycles.
 - **The decline can be abrupt.** One device held 100% of the requested rate through 500
   read-bearing cycles and delivered nothing at 600, with no reading in between. Cancel latency
   several times normal has also been seen, so a gradual regime exists too; do not rely on
@@ -107,7 +111,7 @@ There is no software equivalent of unplugging on macOS. A hub with per-port powe
 driven by `uhubctl`, is the only real substitute, and that route was considered and not taken:
 it needs the dongles on a hub whose switching genuinely works, and a hub that advertises the
 capability does not always honor it. **Replugging is the accepted method.** It is rarely
-needed in ordinary development, because sustained reading cycles are what wear a device and
+needed in ordinary development, because open-read-close cycles are what wear a device and
 `tools/test-degrade.sh` needs several hundred to do it deliberately.
 
 **`tools/HwHealth` is how you tell the difference.** It streams for several seconds and
@@ -138,11 +142,24 @@ carrying a use-after-free. A clean harness run means "these changes broke nothin
 "the defect is gone". Proving a crash fixed needs enough cycles to make a low-probability fault
 near-certain, which is `tools/HwStress` and `tools/test-stress.sh`.
 
+**Use the `restart` pattern to detect the cancel defect.** Against unmodified 2.0.3 it crashed
+6 times in about 6,800 cycles, and it barely wears the device. The `reopen` pattern crashed the
+same library once in about 120 cycles and wore the dongle out before more could be run, so a
+clean `reopen` result says little. Every crash report from these runs faulted in the same two
+places: `darwin_async_io_callback` on libusb's event thread, or `rtlsdr_close` inside a
+control transfer.
+
 **Comparing two builds requires interleaved same-state controls.** Run them alternately —
 A, B, A, B — in one device state, with the unpatched control in the same session. If the
 control does not fail, the test cannot detect the defect and a clean result from the other
 build means nothing. Replug before anything decisive, and say how many runs a claim rests on.
 A single run of one build establishes nothing.
+
+**The control's crash rate is not stable, so a rate from one session is that session's only.**
+Under `restart`, unmodified 2.0.3 crashed within 4 and 7 cycles in one session; in two later
+sessions all its crashes came in the first round, and the following 4,600 cycles had none,
+with nothing changed in the device or the code. Compare builds within the same rounds, and run
+enough cycles for the control to fail several times before reading anything into the others.
 
 **A bad `RTLSDR_LIBRARY_PATH` is silent.** If the path does not exist, or is not a loadable
 library, resolution falls through to the installed copy and nothing is reported. A run you
@@ -156,9 +173,17 @@ matters, do not trust the variable — confirm the build behaves differently fro
 are comparing it against. That is the only check that cannot quietly pass.
 
 **A fixed time budget is not a stall detector.** At the degraded rate a run that is merely slow
-looks identical to one that hung. Classify a run as passed, crashed or stalled from what it
-did, not from how long it took. `HwStress` judges this from progress, resetting its budget on
-every completed cycle, so a slow run is never reported as a stuck one.
+looks identical to one that hung. Classify a run as passed, crashed, stalled or starved from
+what it did, not from how long it took. `HwStress` judges this from progress, resetting its
+budget on every completed cycle, so a slow run is never reported as a stuck one.
+
+**A cycle without samples tests nothing.** With no transfer completing there is nothing for the
+stop to race against, so `HwStress` requires every cycle to receive samples. A cycle that does
+not is counted separately, and three in a row end the run as `STARVED` (exit 3): each further
+cycle would spend its full five-second sample deadline while measuring nothing. That is not a
+verdict. A worn-out device and a build that cannot restart a reading look the same from inside
+the run, and only a health check through a library known to stream separates them, which is
+why `test-compare.sh` takes `--health-library`.
 
 ### The procedures
 
@@ -168,8 +193,8 @@ correct method is the easy one rather than something to remember and hand-roll.
 ```bash
 tools/test-release.sh                      # everything that must hold before tagging
 tools/test-verify.sh                       # HwHealth, HwVerify, HwHealth
-tools/test-stress.sh --pattern reopen      # cycle hard, bracketed by health checks
-tools/test-compare.sh --library A --library B   # alternate builds in one device state
+tools/test-stress.sh --pattern restart     # cycle hard, bracketed by health checks
+tools/test-compare.sh --library A --library B --health-library A   # alternate builds in one device state
 tools/test-degrade.sh --library PATCHED    # degrade a dongle and confirm HwHealth notices
 tools/test-patches.sh                      # do the vendored patches still apply and compile?
 tools/test-version.sh                      # does the version agree everywhere it is written?
@@ -206,6 +231,13 @@ delivering. `test-degrade.sh` wants a **patched** library, because the point is 
 device out rather than to crash the process, and it leaves the dongle degraded: replug after
 it.
 
+`test-compare.sh` also requires `--health-library`: every health check, the opening one
+included, reads through that library, never through the build just measured or the installed
+one. Give it a build known to stream and stop cleanly. A probe reading through a defective
+build can die on stop and report nothing, and the installed library is the defective one
+wherever 2.0.3 is installed. The script stops at the first unhealthy check and exits 3, since
+every run after it would measure a device that is not delivering.
+
 **`tools/build-native.sh` produces those builds.** It clones `steve-m/librtlsdr` at a chosen
 ref, optionally applies patches, and compiles a library the tools can be pointed at, so
 "patch, rebuild, measure" is a command rather than a reconstruction:
@@ -214,7 +246,8 @@ ref, optionally applies patches, and compiles a library the tools can be pointed
 tools/build-native.sh --output /tmp/pristine.dylib
 tools/build-native.sh --output /tmp/fixed.dylib \
     --patch patches/librtlsdr-async-cancel-fix.diff
-tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib
+tools/test-compare.sh --library /tmp/fixed.dylib --library /tmp/pristine.dylib \
+    --health-library /tmp/fixed.dylib
 ```
 
 Patches live in `patches/`, so this needs no checkout beyond this repository. See the
@@ -261,7 +294,7 @@ src/RtlSdrManager/
 tests/RtlSdrManager.Tests/        xUnit suite (hardware-independent only)
 tools/HwVerify/                   Hardware verification harness (dongle required)
 tools/HwHealth/                   Sustained-delivery health probe (dongle required)
-tools/HwStress/                   Cycling stress tool: crashes and stalls (dongle required)
+tools/HwStress/                   Cycling stress tool: crashes, stalls, starved runs (dongle required)
 tools/HwCommon/                   Helpers shared by the hardware tools
 tools/build-native.sh             Build a native librtlsdr to test against
 tools/test-*.sh                   Procedures composing the Hw* tools
