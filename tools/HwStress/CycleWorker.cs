@@ -40,6 +40,35 @@ internal static class CycleWorker
     public const string CycleMarker = " ok";
 
     /// <summary>
+    /// Marker written for a cycle whose reading received no samples before its deadline.
+    /// </summary>
+    /// <remarks>
+    /// Such a cycle exercises nothing: with no transfer completing there is nothing for the
+    /// stop to race against. It is counted apart from completed cycles, so a device that has
+    /// stopped delivering cannot produce a run that looks clean.
+    /// </remarks>
+    public const string EmptyCycleMarker = " empty";
+
+    /// <summary>
+    /// Exit code used when the cycles ended because readings stopped receiving samples.
+    /// </summary>
+    /// <remarks>
+    /// Says nothing about why. A worn-out device and a build that cannot restart a reading
+    /// look identical from here; telling them apart takes a health check with a library known
+    /// to stream, which is the caller's job.
+    /// </remarks>
+    public const int StarvedExitCode = 4;
+
+    /// <summary>
+    /// Consecutive empty cycles after which the run is abandoned.
+    /// </summary>
+    /// <remarks>
+    /// Each empty cycle costs the full sample deadline, so continuing only spends time and
+    /// wears the device further without measuring anything.
+    /// </remarks>
+    private const int StarvedCycleLimit = 3;
+
+    /// <summary>
     /// Prefix for a managed fault, so the parent can tell one from a native crash.
     /// </summary>
     /// <remarks>
@@ -71,7 +100,10 @@ internal static class CycleWorker
     /// <param name="pattern">Which lifecycle to cycle.</param>
     /// <param name="cycles">How many times.</param>
     /// <param name="index">Device index to use.</param>
-    /// <returns>Zero when every cycle completed.</returns>
+    /// <returns>
+    /// Zero when every cycle completed, or <see cref="StarvedExitCode"/> when readings stopped
+    /// receiving samples.
+    /// </returns>
     public static int Run(CyclePattern pattern, int cycles, uint index)
     {
         RtlSdrDeviceManager.SuppressLibraryConsoleOutput = true;
@@ -79,22 +111,14 @@ internal static class CycleWorker
 
         try
         {
-            switch (pattern)
+            bool starved = pattern switch
             {
-                case CyclePattern.Restart:
-                    RunRestart(manager, cycles, index);
-                    break;
+                CyclePattern.Restart => RunRestart(manager, cycles, index),
+                CyclePattern.Reopen => RunReopen(manager, cycles, index),
+                _ => RunOpenClose(manager, cycles, index)
+            };
 
-                case CyclePattern.Reopen:
-                    RunReopen(manager, cycles, index);
-                    break;
-
-                default:
-                    RunOpenClose(manager, cycles, index);
-                    break;
-            }
-
-            return 0;
+            return starved ? StarvedExitCode : 0;
         }
         catch (Exception ex)
         {
@@ -116,19 +140,25 @@ internal static class CycleWorker
     /// <param name="manager">The device manager.</param>
     /// <param name="cycles">How many readings to take.</param>
     /// <param name="index">Device index to use.</param>
-    private static void RunRestart(RtlSdrDeviceManager manager, int cycles, uint index)
+    /// <returns>True when the run was abandoned because readings stopped receiving samples.</returns>
+    private static bool RunRestart(RtlSdrDeviceManager manager, int cycles, uint index)
     {
         manager.OpenManagedDevice(index, DeviceName);
 
         try
         {
             RtlSdrManagedDevice device = Configure(manager[DeviceName]);
+            int consecutiveEmpty = 0;
 
             for (int i = 0; i < cycles; i++)
             {
-                ReadOnce(device);
-                MarkCycle();
+                if (MarkCycle(ReadOnce(device), ref consecutiveEmpty))
+                {
+                    return true;
+                }
             }
+
+            return false;
         }
         finally
         {
@@ -142,23 +172,32 @@ internal static class CycleWorker
     /// <param name="manager">The device manager.</param>
     /// <param name="cycles">How many iterations.</param>
     /// <param name="index">Device index to use.</param>
-    private static void RunReopen(RtlSdrDeviceManager manager, int cycles, uint index)
+    /// <returns>True when the run was abandoned because readings stopped receiving samples.</returns>
+    private static bool RunReopen(RtlSdrDeviceManager manager, int cycles, uint index)
     {
+        int consecutiveEmpty = 0;
+
         for (int i = 0; i < cycles; i++)
         {
             manager.OpenManagedDevice(index, DeviceName);
+            bool delivered;
 
             try
             {
-                ReadOnce(Configure(manager[DeviceName]));
+                delivered = ReadOnce(Configure(manager[DeviceName]));
             }
             finally
             {
                 manager.CloseAllManagedDevice();
             }
 
-            MarkCycle();
+            if (MarkCycle(delivered, ref consecutiveEmpty))
+            {
+                return true;
+            }
         }
+
+        return false;
     }
 
     /// <summary>
@@ -167,29 +206,37 @@ internal static class CycleWorker
     /// <param name="manager">The device manager.</param>
     /// <param name="cycles">How many iterations.</param>
     /// <param name="index">Device index to use.</param>
-    private static void RunOpenClose(RtlSdrDeviceManager manager, int cycles, uint index)
+    /// <returns>Always false: with no reading there are no samples to miss.</returns>
+    private static bool RunOpenClose(RtlSdrDeviceManager manager, int cycles, uint index)
     {
+        int consecutiveEmpty = 0;
+
         for (int i = 0; i < cycles; i++)
         {
             manager.OpenManagedDevice(index, DeviceName);
             manager.CloseAllManagedDevice();
-            MarkCycle();
+            MarkCycle(delivered: true, ref consecutiveEmpty);
         }
+
+        return false;
     }
 
     /// <summary>
     /// Take one reading and end it.
     /// </summary>
     /// <param name="device">The device to read from.</param>
+    /// <returns>True when samples arrived before the deadline.</returns>
     /// <remarks>
     /// Waiting for samples matters: a start that is stopped before any transfer has completed
     /// exercises a different and gentler path than one that is stopped mid-stream.
     /// </remarks>
-    private static void ReadOnce(RtlSdrManagedDevice device)
+    private static bool ReadOnce(RtlSdrManagedDevice device)
     {
         device.StartReadSamplesAsync();
-        Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, SampleDeadline);
+        bool delivered = Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, SampleDeadline);
         device.StopReadSamplesAsync();
+
+        return delivered;
     }
 
     /// <summary>
@@ -216,9 +263,16 @@ internal static class CycleWorker
     /// <summary>
     /// Announce a completed cycle to the parent.
     /// </summary>
-    private static void MarkCycle()
+    /// <param name="delivered">Whether the cycle's reading received samples.</param>
+    /// <param name="consecutiveEmpty">Empty cycles in a row so far; updated here.</param>
+    /// <returns>True when <see cref="StarvedCycleLimit"/> empty cycles have run in a row.</returns>
+    private static bool MarkCycle(bool delivered, ref int consecutiveEmpty)
     {
-        Console.Error.WriteLine(CycleMarker);
+        Console.Error.WriteLine(delivered ? CycleMarker : EmptyCycleMarker);
         Console.Error.Flush();
+
+        consecutiveEmpty = delivered ? 0 : consecutiveEmpty + 1;
+
+        return consecutiveEmpty >= StarvedCycleLimit;
     }
 }

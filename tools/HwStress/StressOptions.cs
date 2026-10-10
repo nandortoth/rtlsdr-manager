@@ -54,7 +54,7 @@ internal sealed record StressOptions(
         """
         HwStress - cycle a device and report what broke.
 
-          --pattern P        restart | reopen | openclose (default reopen)
+          --pattern P        restart | reopen | openclose (default restart)
           --cycles N         cycles per run (default 100)
           --runs M           runs, each in its own process (default 5)
           --index N          device index (default 0)
@@ -63,10 +63,17 @@ internal sealed record StressOptions(
 
         Patterns:
           restart    open once, then start and stop a reading repeatedly
-          reopen     open, read, stop and close every iteration
+          reopen     open, read, stop and close every iteration; wears a dongle
+                     out within a few hundred cycles
           openclose  open and close only, with no reading
 
-        Exit codes: 0 every run completed, 1 a run crashed or stalled, 2 bad usage.
+        Every cycle must receive samples. Three in a row without any end the run as
+        STARVED, which is not a verdict: the device may have stopped delivering, or the
+        build may have stopped streaming. A health check with a library known to stream
+        tells which; tools/test-compare.sh performs it.
+
+        Exit codes: 0 every run completed with samples, 1 a run crashed or stalled,
+        2 bad usage, 3 nothing crashed or stalled but a run was starved.
         Set RTLSDR_LIBRARY_PATH to cycle against a specific native build.
         """;
 
@@ -79,7 +86,7 @@ internal sealed record StressOptions(
     /// <returns>True when the command line was understood.</returns>
     public static bool TryParse(string[] args, out StressOptions options, out string? error)
     {
-        options = new StressOptions(CyclePattern.Reopen, 100, 5, 0, DefaultStallBudget, false,
+        options = new StressOptions(CyclePattern.Restart, 100, 5, 0, DefaultStallBudget, false,
             false);
         error = null;
 
@@ -90,7 +97,7 @@ internal sealed record StressOptions(
             return true;
         }
 
-        CyclePattern pattern = CyclePattern.Reopen;
+        CyclePattern pattern = CyclePattern.Restart;
 
         if (TryReadValue(args, "--pattern", out string? rawPattern) &&
             !Enum.TryParse(rawPattern, ignoreCase: true, out pattern))

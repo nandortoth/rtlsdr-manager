@@ -42,19 +42,32 @@ internal enum RunStatus
     /// <summary>
     /// The process stopped completing cycles while still alive.
     /// </summary>
-    Stalled
+    Stalled,
+
+    /// <summary>
+    /// At least one reading received no samples, so the run did not test what it claims to.
+    /// </summary>
+    /// <remarks>
+    /// Not a verdict on the library either way. A device that has stopped delivering and a
+    /// build that cannot restart a reading both end up here; a health check with a library
+    /// known to stream decides which, and <c>tools/test-compare.sh</c> performs it.
+    /// </remarks>
+    Starved
 }
 
 /// <summary>
 /// What one run of a pattern did.
 /// </summary>
 /// <param name="Status">How it ended.</param>
-/// <param name="CompletedCycles">Cycles finished before it ended.</param>
+/// <param name="CompletedCycles">Cycles finished before it ended, with or without samples.</param>
+/// <param name="EmptyCycles">How many of those received no samples.</param>
 /// <param name="Elapsed">How long it ran.</param>
 /// <param name="ExitCode">Process exit code, or null when it was killed for stalling.</param>
+/// <param name="Reason">What a managed fault reported, when there was one.</param>
 internal sealed record RunOutcome(
     RunStatus Status,
     int CompletedCycles,
+    int EmptyCycles,
     TimeSpan Elapsed,
     int? ExitCode,
     string? Reason = null)
@@ -69,11 +82,17 @@ internal sealed record RunOutcome(
         string head = $"    run {number}: {Status.ToString().ToUpperInvariant(),-8} " +
                       $"{CompletedCycles,5} cycles {Elapsed.TotalSeconds,7:0.0}s";
 
+        if (EmptyCycles > 0)
+        {
+            head += $" ({EmptyCycles} without samples)";
+        }
+
         return Status switch
         {
             RunStatus.Crashed when Reason is not null => $"{head} {Reason}",
             RunStatus.Crashed => $"{head} rc={ExitCode} (no managed frames; the native layer took the process)",
             RunStatus.Stalled => $"{head} no cycle completed before the stall budget expired",
+            RunStatus.Starved => $"{head} readings stopped receiving samples; check health with a library known to stream",
             _ => head
         };
     }

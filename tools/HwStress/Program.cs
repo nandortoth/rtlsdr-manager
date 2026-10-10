@@ -55,11 +55,21 @@ internal static class Program
     private const int ExitUsage = 2;
 
     /// <summary>
+    /// Exit code reported when nothing crashed or stalled but a run was starved of samples.
+    /// </summary>
+    /// <remarks>
+    /// Inconclusive rather than a pass or a failure, matching the release gate's use of 3 for
+    /// a run that could not establish its result.
+    /// </remarks>
+    private const int ExitInconclusive = 3;
+
+    /// <summary>
     /// Entry point. Supervises runs, or performs one when asked to be the worker.
     /// </summary>
     /// <param name="args">Command line arguments; see <see cref="StressOptions.UsageText"/>.</param>
     /// <returns>
-    /// <see cref="ExitOk"/>, <see cref="ExitFailure"/>, or <see cref="ExitUsage"/>.
+    /// <see cref="ExitOk"/>, <see cref="ExitFailure"/>, <see cref="ExitUsage"/>, or
+    /// <see cref="ExitInconclusive"/>.
     /// </returns>
     public static int Main(string[] args)
     {
@@ -88,7 +98,9 @@ internal static class Program
     /// Run every requested run and summarize them.
     /// </summary>
     /// <param name="options">What to run and how.</param>
-    /// <returns><see cref="ExitOk"/> or <see cref="ExitFailure"/>.</returns>
+    /// <returns>
+    /// <see cref="ExitOk"/>, <see cref="ExitFailure"/>, or <see cref="ExitInconclusive"/>.
+    /// </returns>
     private static int Supervise(StressOptions options)
     {
         Console.WriteLine($"HwStress: pattern={options.Pattern.ToString().ToLowerInvariant()} " +
@@ -96,12 +108,13 @@ internal static class Program
                           $"stall-budget={options.StallBudget.TotalSeconds:0}s");
 
         var supervisor = new RunSupervisor(options);
-        int ok = 0, crashed = 0, stalled = 0, completedCycles = 0;
+        int ok = 0, crashed = 0, stalled = 0, starved = 0, completedCycles = 0, emptyCycles = 0;
 
         for (int run = 1; run <= options.Runs; run++)
         {
             RunOutcome outcome = supervisor.RunOnce();
             completedCycles += outcome.CompletedCycles;
+            emptyCycles += outcome.EmptyCycles;
 
             switch (outcome.Status)
             {
@@ -113,6 +126,10 @@ internal static class Program
                     crashed++;
                     break;
 
+                case RunStatus.Starved:
+                    starved++;
+                    break;
+
                 default:
                     stalled++;
                     break;
@@ -121,9 +138,16 @@ internal static class Program
             Console.WriteLine(outcome.Format(run));
         }
 
-        Console.WriteLine($"  => ok={ok} crashed={crashed} stalled={stalled} " +
-                          $"of {options.Runs} runs, {completedCycles} cycles completed");
+        // The scripts read this line, including the cycle count; keep its shape.
+        Console.WriteLine($"  => ok={ok} crashed={crashed} stalled={stalled} starved={starved} " +
+                          $"of {options.Runs} runs, {completedCycles} cycles completed, " +
+                          $"{emptyCycles} without samples");
 
-        return crashed + stalled > 0 ? ExitFailure : ExitOk;
+        if (crashed + stalled > 0)
+        {
+            return ExitFailure;
+        }
+
+        return starved > 0 ? ExitInconclusive : ExitOk;
     }
 }

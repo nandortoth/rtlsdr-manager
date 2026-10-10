@@ -65,9 +65,23 @@ while [[ $TOTAL -lt $MAX_CYCLES ]]; do
 
     # A crash here is not the point and would end the batch early, so the outcome is
     # reported but not treated as fatal.
-    hw_tool HwStress --pattern reopen --cycles "$BATCH" --runs 1 2>&1 | tail -1 || true
+    summary="$(hw_tool HwStress --pattern reopen --cycles "$BATCH" --runs 1 2>&1 | tail -1)" || true
+    echo "$summary"
 
-    TOTAL=$((TOTAL + BATCH))
+    # Count what ran, not what was asked for: a crash or a starved device ends a batch
+    # early, and adding the whole batch would overstate how long the device lasted.
+    if [[ "$summary" =~ ([0-9]+)\ cycles\ completed ]]; then
+        # A batch that completes nothing would otherwise repeat for ever.
+        if [[ ${BASH_REMATCH[1]} -eq 0 ]]; then
+            echo "A batch completed no cycles; stopping rather than repeating it." >&2
+            exit 2
+        fi
+
+        TOTAL=$((TOTAL + BASH_REMATCH[1]))
+    else
+        echo "Could not read a cycle count from HwStress; stopping rather than guessing." >&2
+        exit 2
+    fi
 
     if hw_health "cycles=$TOTAL"; then
         continue

@@ -25,7 +25,9 @@ internal enum CyclePattern
     /// Open once, then start and stop a reading repeatedly on the same instance.
     /// </summary>
     /// <remarks>
-    /// The shape a consumer reaches for when scanning by restarting rather than retuning.
+    /// The shape a consumer reaches for when scanning by restarting rather than retuning. Also
+    /// the most sensitive detector of the native cancel defect, and it barely wears the device,
+    /// because it opens only once.
     /// </remarks>
     Restart,
 
@@ -33,8 +35,10 @@ internal enum CyclePattern
     /// Open, read, stop and close on every iteration.
     /// </summary>
     /// <remarks>
-    /// The ordinary device lifecycle, and the one that fails fastest. Also, what drives a
-    /// dongle into the degraded state where it opens but will not sustain a stream.
+    /// The ordinary device lifecycle, and what drives a dongle into the degraded state where it
+    /// opens but will not sustain a stream: a few hundred cycles can be enough. It reaches the
+    /// native cancel defect far less readily than <see cref="Restart"/>, so a clean run here
+    /// says little.
     /// </remarks>
     Reopen,
 
@@ -42,8 +46,8 @@ internal enum CyclePattern
     /// Open and close, with no reading at all.
     /// </summary>
     /// <remarks>
-    /// The control. It is clean where the other two are not, which is what established that a
-    /// reading is required rather than the open and close churn being at fault. A pattern that
+    /// The control. It neither crashes nor wears the device, which is what established that a
+    /// reading is required for both, rather than the open and close churn being at fault. A pattern that
     /// proves the absence of a cause earns its place as much as one that reproduces it.
     /// </remarks>
     OpenClose

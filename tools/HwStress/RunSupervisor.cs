@@ -62,6 +62,7 @@ internal sealed class RunSupervisor
         child.StartInfo = BuildStartInfo();
 
         int completed = 0;
+        int empty = 0;
         long lastProgressTicks = DateTime.UtcNow.Ticks;
         string? fault = null;
 
@@ -79,7 +80,13 @@ internal sealed class RunSupervisor
                 return;
             }
 
-            if (!e.Data.Contains(CycleWorker.CycleMarker, StringComparison.Ordinal))
+            // An empty cycle still finished, so it is progress for the stall budget; it is
+            // counted separately because it tested nothing.
+            if (e.Data.Contains(CycleWorker.EmptyCycleMarker, StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref empty);
+            }
+            else if (!e.Data.Contains(CycleWorker.CycleMarker, StringComparison.Ordinal))
             {
                 return;
             }
@@ -108,7 +115,7 @@ internal sealed class RunSupervisor
             elapsed.Stop();
 
             return new RunOutcome(RunStatus.Stalled, Volatile.Read(ref completed),
-                elapsed.Elapsed, null);
+                Volatile.Read(ref empty), elapsed.Elapsed, null);
         }
 
         // Lets the reader drain what the child wrote just before exiting, so a cycle finished
@@ -116,10 +123,31 @@ internal sealed class RunSupervisor
         child.WaitForExit();
         elapsed.Stop();
 
-        RunStatus status = child.ExitCode == 0 ? RunStatus.Ok : RunStatus.Crashed;
+        int emptyCycles = Volatile.Read(ref empty);
 
-        return new RunOutcome(status, Volatile.Read(ref completed), elapsed.Elapsed,
-            child.ExitCode, fault);
+        return new RunOutcome(Classify(child.ExitCode, emptyCycles),
+            Volatile.Read(ref completed), emptyCycles, elapsed.Elapsed, child.ExitCode, fault);
+    }
+
+    /// <summary>
+    /// Decide how a child that exited on its own ended.
+    /// </summary>
+    /// <param name="exitCode">The child's exit code.</param>
+    /// <param name="emptyCycles">How many of its cycles received no samples.</param>
+    /// <returns>The run's status.</returns>
+    /// <remarks>
+    /// A clean exit is only <see cref="RunStatus.Ok"/> when every cycle received samples: a
+    /// cycle without them exercised nothing, so a run containing one has not shown what an
+    /// OK claims. Any other unexpected exit code is a crash.
+    /// </remarks>
+    private static RunStatus Classify(int exitCode, int emptyCycles)
+    {
+        return exitCode switch
+        {
+            0 when emptyCycles == 0 => RunStatus.Ok,
+            0 or CycleWorker.StarvedExitCode => RunStatus.Starved,
+            _ => RunStatus.Crashed
+        };
     }
 
     /// <summary>

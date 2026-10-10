@@ -50,6 +50,12 @@ hw_health() {
     output="$(hw_tool HwHealth --seconds "$seconds" 2>&1)"
     local status=$?
 
+    # The probe can die before printing a verdict: it reads through whichever library is
+    # selected, and a defective one can kill it on stop. A blank line would hide that.
+    if [[ -z "$output" ]]; then
+        output="UNKNOWN    the probe died before reporting (exit $status)"
+    fi
+
     printf '  %-8s %s\n' "$label" "$output"
 
     return $status

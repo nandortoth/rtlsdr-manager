@@ -26,7 +26,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hw-common.sh"
 
 LIBRARY=""
-PATTERN="reopen"
+PATTERN="restart"
 CYCLES=100
 RUNS=5
 
@@ -39,8 +39,9 @@ while [[ $# -gt 0 ]]; do
         --help)
             echo "test-stress.sh [--library PATH] [--pattern P] [--cycles N] [--runs M]"
             echo
-            echo "Runs HwStress between two health checks. Patterns: restart, reopen,"
-            echo "openclose. Exits nonzero if any run crashed or stalled."
+            echo "Runs HwStress between two health checks. Patterns: restart (default),"
+            echo "reopen, openclose. Exits 1 if any run crashed or stalled, 3 if a run"
+            echo "was starved of samples with nothing worse, 0 otherwise."
             echo
             echo "A clean result only means something if the same command against a build"
             echo "known to be broken does crash; otherwise the test cannot detect the fault."
@@ -68,7 +69,12 @@ hw_health "after" || true
 hw_heading "Result"
 
 if [[ $STATUS -eq 0 ]]; then
-    echo "  PASS  every run completed"
+    echo "  PASS  every run completed, every cycle with samples"
+elif [[ $STATUS -eq 3 ]]; then
+    echo "  INCONCLUSIVE  nothing crashed or stalled, but readings stopped receiving samples"
+    echo "        If the health check above is UNHEALTHY the device wore out; replug and rerun."
+    echo "        If it is HEALTHY the build itself stopped streaming. Confirm with"
+    echo "        test-compare.sh, whose health checks read through a separate library."
 else
     echo "  FAIL  at least one run crashed or stalled"
 fi
