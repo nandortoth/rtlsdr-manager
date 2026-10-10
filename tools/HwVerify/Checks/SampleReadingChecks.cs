@@ -217,9 +217,13 @@ internal sealed class SampleReadingChecks : IHardwareCheck
                 () => Deadline.WaitUntil(() => device.AsyncBuffer.Count > 0, DeliveryDeadline),
                 $"a non-empty async buffer within {DeliveryDeadline.TotalSeconds:0} s");
 
+            // Waited for rather than read once: the callback fills the buffer before raising the
+            // event, so the buffer can already hold samples when no event has been raised yet.
             report.Check("the SamplesAvailable event is raised",
-                () => Volatile.Read(ref eventCount) > 0,
-                "at least one event; handlers run on the native callback thread");
+                () => Deadline.WaitUntil(() => Volatile.Read(ref eventCount) > 0,
+                    DeliveryDeadline),
+                $"at least one event within {DeliveryDeadline.TotalSeconds:0} s; handlers run " +
+                "on the native callback thread");
 
             report.Check("GetSamplesFromAsyncBuffer returns the counter, in order",
                 () => DeliversTheCounter(device),
