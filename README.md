@@ -41,16 +41,16 @@ dotnet add package RtlSdrManager
 Install-Package RtlSdrManager
 
 # PackageReference (in .csproj)
-<PackageReference Include="RtlSdrManager" Version="0.8.1" />
+<PackageReference Include="RtlSdrManager" Version="0.8.2" />
 ```
 
 ### Prerequisites
 
 The `librtlsdr` native library must be installed on the system. Any 2.x release works,
 but **2.0.3 or later is recommended**: earlier versions can block indefinitely inside the
-native reader when a device is unplugged during an asynchronous reading, so the failure
-surfaces as a stop timeout from `StopReadSamplesAsync()` rather than as the underlying
-error (see [Asynchronous Sample Reading](#asynchronous-sample-reading)).
+native reader when a device fails during an asynchronous reading, so the failure surfaces as
+a stop timeout from `StopReadSamplesAsync()` rather than as the underlying error (see
+[Asynchronous Sample Reading](#asynchronous-sample-reading)).
 
 **Windows:**
 ```powershell
@@ -182,11 +182,16 @@ throwing `SamplesAvailable` handler, or a device failure — the error is captur
 rethrown by `StopReadSamplesAsync()`, and stays observable via `AsyncReadException` until
 the next `StartReadSamplesAsync()`.
 
-Unplugging a device mid-reading belongs to that last case, but how it surfaces depends on
+A device that fails mid-reading belongs to that last case, and how it surfaces depends on
 the native library. With librtlsdr 2.0.3 or later, the native reader returns promptly, and
 you get the underlying error. With earlier versions it can block indefinitely instead, and
-`StopReadSamplesAsync()` gives up after five seconds with a stop-timeout error — the device
+`StopReadSamplesAsync()` gives up after five seconds with a stop-timeout error; the device
 is then left untouched on purpose, so no native callback runs against freed state.
+
+Unplugging a device is only reported as a failure if the platform reports it as one. On
+macOS a disconnect may instead be reported as a canceled transfer, and then the reading simply
+stops delivering samples, with no error raised. If your application must notice a lost
+device, watch for samples to stop arriving rather than relying on an error.
 
 ### Raw Buffer Mode (Zero-Copy)
 
@@ -504,7 +509,7 @@ foreach (var frequency in frequencies)
 {
     device.CenterFrequency = frequency;
     device.ResetDeviceBuffer();
-    Analyse(frequency, device.GetSamplesFromAsyncBuffer(16 * 1024));
+    Analyze(frequency, device.GetSamplesFromAsyncBuffer(16 * 1024));
 }
 
 device.StopReadSamplesAsync();
@@ -514,12 +519,15 @@ device.StopReadSamplesAsync();
 readings. Both reach the defect readily, so neither is a way around the other.
 
 Unaffected: `ReadSamples()`, the synchronous API, on every platform; and a process that
-streams once and exits, which is the usual shape.
+streams once and exits, which is the usual shape, unless the device fails mid-reading: that
+ends the reading through the same path.
 
-Observed on macOS. The native code path lacks the same protection on Linux, so it is likely
-affected there too, and Windows has a partial mitigation that may make it less exposed. A fix
-has been submitted to [steve-m/librtlsdr](https://github.com/steve-m/librtlsdr); once a
-corrected `librtlsdr` is released, upgrading it removes the problem.
+Observed on macOS, and reported on Windows
+([steve-m/librtlsdr#91](https://github.com/steve-m/librtlsdr/issues/91)), where it kills
+applications in the field. Linux shares the same code path, so it is likely affected too. A
+fix is proposed upstream as
+[steve-m/librtlsdr#93](https://github.com/steve-m/librtlsdr/pull/93); once a corrected
+`librtlsdr` is released, upgrading it removes the problem.
 
 ## Contributing
 

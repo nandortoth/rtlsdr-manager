@@ -10,9 +10,9 @@
 
     <!-- Assembly Information -->
     <PropertyGroup>
-        <Version>0.8.1</Version>
-        <FileVersion>0.8.1.0</FileVersion>
-        <AssemblyVersion>0.8.1.0</AssemblyVersion>
+        <Version>0.8.2</Version>
+        <FileVersion>0.8.2.0</FileVersion>
+        <AssemblyVersion>0.8.2.0</AssemblyVersion>
         <Authors>Nandor Toth</Authors>
         <Company>Nandor Toth</Company>
         <Product>RTL-SDR Manager Library for .NET</Product>
@@ -46,35 +46,28 @@
     <!-- Release Notes -->
     <PropertyGroup>
         <PackageReleaseNotes>
-            v0.8.1 (2026-09-06):
+            v0.8.2 (2026-10-10):
+
+            SECURITY:
+            - The source-linking package used while building is updated past a reported
+              vulnerability (CVE-2026-62900). It runs only at build time and is not shipped
+              in the package, so nothing changes for consumers.
 
             CHANGED:
-            - The guidance for asynchronous reading was wrong and is corrected. It
-              recommended closing and reopening the device between readings; that does not
-              avoid the defect below, because closing is one of the two ways it manifests.
-              Use one reading per process, retuning CenterFrequency while it runs.
-            - The event-based example processed samples inside the SamplesAvailable handler.
-              That handler runs on the driver's callback thread, where slow work stalls the
-              transfer pipeline and costs samples, so the example now hands the batch off and
-              processes it elsewhere.
-
-            ADDED:
-            - Trim and Native AOT compatibility. The library can now be used from
-              AOT-published and trimmed applications without trim warnings. No effect on
-              other consumers.
-            - Worked examples for the APIs added in 0.8.0, which shipped without any. The
-              samples now cover opening a device by serial number, the reachable frequency
-              range, and the transfer buffer count, alongside the dropped-sample counter and
-              the captured asynchronous error.
+            - The guidance on unplugging a device mid-reading is corrected. It promised an
+              error on every platform, but on macOS a disconnect may be reported as a canceled
+              transfer, and then the reading simply stops delivering samples. Watch for
+              samples to stop arriving if you must notice a lost device.
 
             KNOWN LIMITATION:
             - Ending an asynchronous reading can terminate the process. The native library
               releases its transfer buffers before every canceled transfer has reported, so a
               late completion writes into released memory. Use one reading per process and
               retune CenterFrequency while it runs; do not stop and restart, and do not close
-              and reopen between readings, as both reach the defect. ReadSamples() and a
-              process that streams once are unaffected. Observed on macOS; a fix has been
-              submitted upstream.
+              and reopen between readings, as both reach the defect. ReadSamples() is
+              unaffected, and so is a process that streams once, unless the device fails
+              mid-reading. Observed on macOS and reported on Windows; a fix is proposed
+              upstream.
 
             See CHANGELOG.md for complete details and previous releases.
         </PackageReleaseNotes>
@@ -96,7 +89,7 @@
 
     <!-- Source Link Support (for debugging) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
     </ItemGroup>
 
     <!-- Expose internals to the unit test project -->

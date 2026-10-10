@@ -137,7 +137,7 @@ in a spot not listed in these steps, use judgment and report what you decided.
 - `build.sh` — does not hardcode a version.
 - `**/obj/`, `**/bin/`, `artifacts/` — build output, including any stale `.nupkg`.
 - Dependency and badge versions — `.NET-10.0` badge, `librtlsdr` 2.x / 2.0.3 references,
-  `Microsoft.SourceLink.GitHub` 8.0.0, xUnit versions.
+  the `Microsoft.SourceLink.GitHub` version, xUnit versions.
 - The GPLv3 header blocks (they carry a copyright year, not a version).
 
 ### 7. Verify and report

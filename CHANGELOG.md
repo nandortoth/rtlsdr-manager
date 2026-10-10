@@ -4,6 +4,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-10-10
+
+### Security
+- The source-linking package used while building is updated from 8.0.0 to 10.0.401, past a
+  reported vulnerability (CVE-2026-62900) for which no patched 8.x release exists. It runs only
+  at build time and is not shipped in the package, so nothing changes for consumers
+
+### Changed
+- The README's guidance on unplugging a device mid-reading is corrected, along with the
+  package release notes. It promised the underlying error with 2.0.3 or later, but that only
+  holds when the platform reports the disconnect as a failure; on macOS it may be reported as a
+  canceled transfer, and then the reading simply stops delivering samples with no error. The
+  README now says so and suggests watching for samples to stop arriving
+- The Known Limitations section no longer suggests Windows is less exposed: the same crash is
+  reported from Windows in steve-m/librtlsdr#91. It links the proposed upstream fix,
+  steve-m/librtlsdr#93, and notes that a process streaming once is also exposed if the device
+  fails mid-reading, since that ends the reading the same way
+- The native patch in `patches/` is now steve-m/librtlsdr#93, replacing the fix this project
+  submitted upstream as #90. Both stop the use-after-free on macOS; #93 also covers the
+  device-lost path and never frees a transfer the USB layer may still complete, so #90 was
+  closed in its favor. The release gate's hardware step builds its native library from this
+  patch, so it now verifies against #93. Contributor tooling only; nothing in the package
+  changes
+
+### Fixed
+- `tools/HwStress` counted a cycle as completed even when its reading received no samples, so a
+  device that had stopped delivering produced clean runs: 200 such cycles took 21 minutes and
+  passed. Every cycle must now receive samples, and three empty cycles in a row end the run as
+  starved, reported apart from completed, crashed and stalled runs and exiting 3. Contributor
+  tooling only; nothing in the package changes
+- `tools/test-compare.sh` read each health check through whichever library happened to be
+  selected: the opening check through the installed one and later checks through the build
+  just measured. Either can be the defective build, and a probe that died printed a blank line.
+  It now requires `--health-library` for every check, refuses a library path that does not
+  exist, stops at the first unhealthy check, and reports a starved run as a failure when the
+  device was healthy and as inconclusive when it was not. A health probe that dies now says so
+  in every script
+- `tools/test-degrade.sh` added a whole batch to its cycle count even when the batch ended
+  early, overstating how long the device lasted. It now counts the cycles that ran
+- `tools/HwVerify`'s check that the `SamplesAvailable` event is raised could fail on a correct
+  build. It read the event count once, as soon as samples were in the buffer, but the buffer
+  fills before the event is raised, so a read in between saw no event. It now waits for the
+  event under the same deadline as the samples. Contributor tooling only
+- `tools/test-compare.sh` printed only each build's summary line, so a native crash that left
+  no crash report could not be told from any other failed run. It now prints every run's own
+  line, with its exit code or the fault a managed exception reported
+- The contributor guide recommended the `reopen` pattern for proving the cancel defect fixed.
+  Measured, `restart` detects the defect far more readily and barely wears a dongle, while
+  `reopen` wears one out within a few hundred cycles; the guide and the pattern descriptions
+  now say so. `tools/HwStress` and `tools/test-stress.sh` default to `restart` for the same
+  reason: their default of 500 `reopen` cycles could wear a dongle out partway through a run
+
 ## [0.8.1] - 2026-09-06
 
 ### Changed
@@ -505,6 +557,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Key Changes |
 |---------|------------|-------------|
+| **0.8.2** | 2026-10-10 | Build-time dependency security update; stress tooling no longer passes cycles that received no samples (non-breaking) |
 | **0.8.1** | 2026-09-06 | Corrected async reading guidance, Trim and Native AOT support, worked examples for the 0.8.0 APIs (non-breaking) |
 | **0.8.0** | 2026-08-25 | Direct sampling usable, open by serial, tuner capability ranges, transfer buffer control (breaking) |
 | **0.7.1** | 2026-07-24 | `IQData` byte-backed storage (~2-4x less memory, non-breaking) |
@@ -708,6 +761,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+[0.8.2]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.8.2
 [0.8.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.8.1
 [0.8.0]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.8.0
 [0.7.1]: https://github.com/nandortoth/rtlsdr-manager/releases/tag/v0.7.1
